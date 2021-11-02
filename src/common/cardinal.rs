@@ -17,8 +17,8 @@ impl Cardinal {
         }
     }
 
-    pub fn to_arrow(&self) -> char {
-        match *self {
+    pub fn to_arrow(self) -> char {
+        match self {
             Self::North => '^',
             Self::South => 'v',
             Self::East => '>',
@@ -36,8 +36,8 @@ impl Cardinal {
         }
     }
 
-    pub fn to_char(&self) -> char {
-        match *self {
+    pub fn to_char(self) -> char {
+        match self {
             Self::North => 'N',
             Self::South => 'S',
             Self::East => 'E',
@@ -45,16 +45,16 @@ impl Cardinal {
         }
     }
 
-    pub fn turn(&self, dir: Turn) -> Self {
+    pub fn turn(self, dir: Turn) -> Self {
         match dir {
-            Turn::Left => match *self {
+            Turn::Left => match self {
                 Self::North => Self::West,
                 Self::South => Self::East,
                 Self::East => Self::North,
                 Self::West => Self::South,
             },
 
-            Turn::Right => match *self {
+            Turn::Right => match self {
                 Self::North => Self::East,
                 Self::South => Self::West,
                 Self::East => Self::South,
