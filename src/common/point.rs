@@ -84,7 +84,7 @@ impl Point {
 
     pub fn get_range<'a, I>(values: I) -> Option<((i32, i32), (i32, i32))>
     where
-        I: std::iter::IntoIterator<Item = &'a Point>, // Using IntoIterator instead of Iterator allows the user to pass either an iterator or something that can be turned into one
+        I: std::iter::IntoIterator<Item = &'a Self>, // Using IntoIterator instead of Iterator allows the user to pass either an iterator or something that can be turned into one
     {
         let mut point_iter = values.into_iter(); // Note: if 'values' is an Iterator it will just return itself here
         if let Some(point) = point_iter.next() {
