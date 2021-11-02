@@ -70,12 +70,12 @@ impl Point {
 
     const ORTHOGONALS: [(i32, i32); 4] = [(0, -1), (0, 1), (1, 0), (-1, 0)];
     pub fn orthogonals(&self) -> impl Iterator<Item = Self> + '_ {
-        Self::ORTHOGONALS.iter().map(move |p| *self + *p)
+        Self::ORTHOGONALS.into_iter().map(move |p| self + p)
     }
 
     const DIAGONALS: [(i32, i32); 4] = [(-1, -1), (1, -1), (1, 1), (-1, 1)];
     pub fn diagonals(&self) -> impl Iterator<Item = Self> + '_ {
-        Self::DIAGONALS.iter().map(move |p| *self + *p)
+        Self::DIAGONALS.into_iter().map(move |p| self + p)
     }
 
     pub fn adjacents(&self) -> impl Iterator<Item = Self> + '_ {
