@@ -33,12 +33,11 @@ impl TileSet {
         }
     }
 
-    pub fn from_string(input: &str, active_char: char) -> Self {
-        // TODO: use const generics to avoid passing in a value for active_char
-        Self::parser(active_char)(input).unwrap().1
+    pub fn from_string<const ACTIVE_CHAR: char>(input: &str) -> Self {
+        Self::parser::<ACTIVE_CHAR>()(input).unwrap().1
     }
 
-    pub fn parser(active_char: char) -> impl Fn(&str) -> IResult<&str, Self> {
+    pub fn parser<const ACTIVE_CHAR: char>() -> impl Fn(&str) -> IResult<&str, Self> {
         move |input: &str| {
             let (pixels, input) = if let Some(idx) = input.find("\n\n") {
                 input.split_at(idx)
@@ -49,13 +48,13 @@ impl TileSet {
             let mut tiles = HashSet::new();
             for (y, line) in pixels.lines().enumerate() {
                 for (x, c) in line.chars().enumerate() {
-                    if c == active_char {
+                    if c == ACTIVE_CHAR {
                         let p = (x as i32, y as i32).into();
                         tiles.insert(p);
                     }
                 }
             }
-            Ok((input, Self { tiles, active_char }))
+            Ok((input, Self { tiles, active_char: ACTIVE_CHAR }))
         }
     }
 
@@ -189,7 +188,7 @@ mod test {
     #[test]
     fn test_tileset_from_string() {
         let input = ".";
-        let tileset = TileSet::from_string(input, '#');
+        let tileset = TileSet::from_string::<'#'>(input);
         assert_eq!(
             tileset,
             TileSet {
@@ -202,7 +201,7 @@ mod test {
 ###
 #.#
 ###";
-        let tileset = TileSet::from_string(input, '#');
+        let tileset = TileSet::from_string::<'#'>(input);
         let expected: HashSet<Point> = vec![
             (0, 0),
             (1, 0),
@@ -228,7 +227,7 @@ mod test {
 X..
 .X.
 ..X";
-        let tileset = TileSet::from_string(input, 'X');
+        let tileset = TileSet::from_string::<'X'>(input);
         let expected: HashSet<Point> = [(0, 0), (1, 1), (2, 2)].iter().map(|&t| t.into()).collect();
         assert_eq!(
             tileset,
@@ -244,7 +243,7 @@ X.
 
 .X
 X.";
-        let tileset = TileSet::from_string(input, 'X');
+        let tileset = TileSet::from_string::<'X'>(input);
         let expected: HashSet<Point> = [(0, 0), (1, 1)].iter().map(|&t| t.into()).collect();
         assert_eq!(
             tileset,
@@ -261,7 +260,7 @@ X.";
 X..
 .X.
 ..X";
-        let tileset = TileSet::from_string(input, 'X');
+        let tileset = TileSet::from_string::<'X'>(input);
         assert_eq!(tileset.contains(&(0, 0).into()), true);
         assert_eq!(tileset.contains(&(1, 1).into()), true);
         assert_eq!(tileset.contains(&(2, 2).into()), true);
@@ -275,32 +274,32 @@ X..
 ###
 #.#
 ###";
-        let tileset = TileSet::from_string(input, '#');
+        let tileset = TileSet::from_string::<'#'>(input);
         assert_eq!(tileset.to_string().trim(), input);
 
         let input = "\
 X..
 .X.
 ..X";
-        let tileset = TileSet::from_string(input, 'X');
+        let tileset = TileSet::from_string::<'X'>(input);
         assert_eq!(tileset.to_string().trim(), input);
     }
 
     #[test]
     fn test_tileset_range() {
         let input = ".";
-        let tileset = TileSet::from_string(input, '#');
+        let tileset = TileSet::from_string::<'#'>(input);
         assert_eq!(tileset.get_range(), None);
 
         let input = "\
 ###
 #.#
 ###";
-        let tileset = TileSet::from_string(input, '#');
+        let tileset = TileSet::from_string::<'#'>(input);
         assert_eq!(tileset.get_range(), Some(((0, 2), (0, 2))));
 
         let input = "#.#.#.#.#.#.#.#.#";
-        let tileset = TileSet::from_string(input, '#');
+        let tileset = TileSet::from_string::<'#'>(input);
         assert_eq!(tileset.get_range(), Some(((0, 16), (0, 0))));
     }
 
