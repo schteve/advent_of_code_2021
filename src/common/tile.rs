@@ -1,10 +1,10 @@
-use crate::common::{Point, Range2};
+use crate::common::{Point2, Range2};
 use nom::IResult;
 use std::collections::{HashMap, HashSet};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct TileSet {
-    tiles: HashSet<Point>,
+    tiles: HashSet<Point2>,
     active_char: char,
 }
 
@@ -25,7 +25,7 @@ impl TileSet {
 
     pub fn with_tiles<'a, I>(self, tiles: I) -> Self
     where
-        I: std::iter::IntoIterator<Item = &'a Point>,
+        I: std::iter::IntoIterator<Item = &'a Point2>,
     {
         Self {
             tiles: tiles.into_iter().copied().collect(),
@@ -65,7 +65,7 @@ impl TileSet {
     }
 
     pub fn get_range(&self) -> Option<Range2> {
-        Point::get_range(&self.tiles)
+        Point2::get_range(&self.tiles)
     }
 }
 
@@ -74,7 +74,7 @@ impl std::fmt::Display for TileSet {
         let range = self.get_range().unwrap();
         for y in range.y.0..=range.y.1 {
             for x in range.x.0..=range.x.1 {
-                if self.tiles.contains(&Point { x, y }) {
+                if self.tiles.contains(&Point2 { x, y }) {
                     write!(f, "{}", self.active_char)?;
                 } else {
                     write!(f, ".")?;
@@ -87,7 +87,7 @@ impl std::fmt::Display for TileSet {
 }
 
 impl std::ops::Deref for TileSet {
-    type Target = HashSet<Point>;
+    type Target = HashSet<Point2>;
     fn deref(&self) -> &Self::Target {
         &self.tiles
     }
@@ -110,7 +110,7 @@ where
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct TileMap<T> {
-    tiles: HashMap<Point, T>,
+    tiles: HashMap<Point2, T>,
 }
 
 impl<T: TileChar> TileMap<T> {
@@ -122,7 +122,7 @@ impl<T: TileChar> TileMap<T> {
 
     pub fn with_tiles<'a, I>(self, tiles: I) -> Self
     where
-        I: std::iter::IntoIterator<Item = (&'a Point, T)>,
+        I: std::iter::IntoIterator<Item = (&'a Point2, T)>,
     {
         Self {
             tiles: tiles.into_iter().map(|(p, t)| (*p, t)).collect(),
@@ -153,7 +153,7 @@ impl<T: TileChar> TileMap<T> {
     }
 
     pub fn get_range(&self) -> Option<Range2> {
-        Point::get_range(self.tiles.keys())
+        Point2::get_range(self.tiles.keys())
     }
 }
 
@@ -162,7 +162,7 @@ impl<T: TileChar> std::fmt::Display for TileMap<T> {
         let range = self.get_range().unwrap();
         for y in range.y.0..=range.y.1 {
             for x in range.x.0..=range.x.1 {
-                if let Some(t) = self.tiles.get(&Point { x, y }) {
+                if let Some(t) = self.tiles.get(&Point2 { x, y }) {
                     write!(f, "{}", t.to_char())?;
                 } else {
                     write!(f, ".")?;
@@ -175,7 +175,7 @@ impl<T: TileChar> std::fmt::Display for TileMap<T> {
 }
 
 impl<T: TileChar> std::ops::Deref for TileMap<T> {
-    type Target = HashMap<Point, T>;
+    type Target = HashMap<Point2, T>;
     fn deref(&self) -> &Self::Target {
         &self.tiles
     }
@@ -208,7 +208,7 @@ mod test {
 #.#
 ###";
         let tileset = TileSet::from_string::<'#'>(input);
-        let expected: HashSet<Point> = vec![
+        let expected: HashSet<Point2> = vec![
             (0, 0),
             (1, 0),
             (2, 0),
@@ -234,7 +234,8 @@ X..
 .X.
 ..X";
         let tileset = TileSet::from_string::<'X'>(input);
-        let expected: HashSet<Point> = [(0, 0), (1, 1), (2, 2)].iter().map(|&t| t.into()).collect();
+        let expected: HashSet<Point2> =
+            [(0, 0), (1, 1), (2, 2)].iter().map(|&t| t.into()).collect();
         assert_eq!(
             tileset,
             TileSet {
@@ -250,7 +251,7 @@ X.
 .X
 X.";
         let tileset = TileSet::from_string::<'X'>(input);
-        let expected: HashSet<Point> = [(0, 0), (1, 1)].iter().map(|&t| t.into()).collect();
+        let expected: HashSet<Point2> = [(0, 0), (1, 1)].iter().map(|&t| t.into()).collect();
         assert_eq!(
             tileset,
             TileSet {
@@ -367,7 +368,7 @@ ABC
 A.A
 CBA";
         let tilemap = TileMap::from_string(input);
-        let expected: HashMap<Point, MyTile> = vec![
+        let expected: HashMap<Point2, MyTile> = vec![
             ((0, 0), MyTile::A),
             ((1, 0), MyTile::B),
             ((2, 0), MyTile::C),
@@ -389,7 +390,7 @@ AA
 BB
 BB";
         let tilemap = TileMap::from_string(input);
-        let expected: HashMap<Point, MyTile> = vec![
+        let expected: HashMap<Point2, MyTile> = vec![
             ((0, 0), MyTile::A),
             ((1, 0), MyTile::A),
             ((0, 1), MyTile::A),
