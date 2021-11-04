@@ -208,7 +208,7 @@ mod test {
 #.#
 ###";
         let tileset = TileSet::from_string::<'#'>(input);
-        let expected: HashSet<Point2> = vec![
+        let expected: HashSet<Point2> = [
             (0, 0),
             (1, 0),
             (2, 0),
@@ -368,7 +368,7 @@ ABC
 A.A
 CBA";
         let tilemap = TileMap::from_string(input);
-        let expected: HashMap<Point2, MyTile> = vec![
+        let expected: HashMap<Point2, MyTile> = [
             ((0, 0), MyTile::A),
             ((1, 0), MyTile::B),
             ((2, 0), MyTile::C),
@@ -390,7 +390,7 @@ AA
 BB
 BB";
         let tilemap = TileMap::from_string(input);
-        let expected: HashMap<Point2, MyTile> = vec![
+        let expected: HashMap<Point2, MyTile> = [
             ((0, 0), MyTile::A),
             ((1, 0), MyTile::A),
             ((0, 1), MyTile::A),

@@ -352,7 +352,7 @@ mod test {
         let range = Point2::get_range(&points);
         assert_eq!(range, None);
 
-        let points = vec![Point2 { x: 0, y: 0 }];
+        let points = [Point2 { x: 0, y: 0 }];
         let range = Point2::get_range(&points);
         assert_eq!(
             range,
@@ -362,7 +362,7 @@ mod test {
             })
         );
 
-        let points = vec![
+        let points = [
             Point2 { x: -5, y: 0 },
             Point2 { x: 0, y: 7 },
             Point2 { x: 4, y: 4 },
@@ -376,7 +376,7 @@ mod test {
             })
         );
 
-        let points = vec![
+        let points = [
             Point2 { x: 24, y: -86 },
             Point2 { x: -80, y: 33 },
             Point2 { x: 16, y: -81 },
@@ -396,7 +396,7 @@ mod test {
             })
         );
 
-        let points = vec![
+        let points = [
             Point2 {
                 x: 311147,
                 y: 388530,
