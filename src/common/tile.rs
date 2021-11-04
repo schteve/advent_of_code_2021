@@ -1,4 +1,4 @@
-use crate::common::Point;
+use crate::common::{Point, Range2};
 use nom::IResult;
 use std::collections::{HashMap, HashSet};
 
@@ -54,20 +54,26 @@ impl TileSet {
                     }
                 }
             }
-            Ok((input, Self { tiles, active_char: ACTIVE_CHAR }))
+            Ok((
+                input,
+                Self {
+                    tiles,
+                    active_char: ACTIVE_CHAR,
+                },
+            ))
         }
     }
 
-    pub fn get_range(&self) -> Option<((i32, i32), (i32, i32))> {
+    pub fn get_range(&self) -> Option<Range2> {
         Point::get_range(&self.tiles)
     }
 }
 
 impl std::fmt::Display for TileSet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let (x_range, y_range) = self.get_range().unwrap();
-        for y in y_range.0..=y_range.1 {
-            for x in x_range.0..=x_range.1 {
+        let range = self.get_range().unwrap();
+        for y in range.y.0..=range.y.1 {
+            for x in range.x.0..=range.x.1 {
                 if self.tiles.contains(&Point { x, y }) {
                     write!(f, "{}", self.active_char)?;
                 } else {
@@ -146,16 +152,16 @@ impl<T: TileChar> TileMap<T> {
         Ok((input, Self { tiles }))
     }
 
-    pub fn get_range(&self) -> Option<((i32, i32), (i32, i32))> {
+    pub fn get_range(&self) -> Option<Range2> {
         Point::get_range(self.tiles.keys())
     }
 }
 
 impl<T: TileChar> std::fmt::Display for TileMap<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let (x_range, y_range) = self.get_range().unwrap();
-        for y in y_range.0..=y_range.1 {
-            for x in x_range.0..=x_range.1 {
+        let range = self.get_range().unwrap();
+        for y in range.y.0..=range.y.1 {
+            for x in range.x.0..=range.x.1 {
                 if let Some(t) = self.tiles.get(&Point { x, y }) {
                     write!(f, "{}", t.to_char())?;
                 } else {
@@ -296,11 +302,23 @@ X..
 #.#
 ###";
         let tileset = TileSet::from_string::<'#'>(input);
-        assert_eq!(tileset.get_range(), Some(((0, 2), (0, 2))));
+        assert_eq!(
+            tileset.get_range(),
+            Some(Range2 {
+                x: (0, 2),
+                y: (0, 2)
+            })
+        );
 
         let input = "#.#.#.#.#.#.#.#.#";
         let tileset = TileSet::from_string::<'#'>(input);
-        assert_eq!(tileset.get_range(), Some(((0, 16), (0, 0))));
+        assert_eq!(
+            tileset.get_range(),
+            Some(Range2 {
+                x: (0, 16),
+                y: (0, 0)
+            })
+        );
     }
 
     #[derive(Debug, PartialEq)]
@@ -425,10 +443,22 @@ ABC
 A.A
 CBA";
         let tilemap: TileMap<MyTile> = TileMap::from_string(input);
-        assert_eq!(tilemap.get_range(), Some(((0, 2), (0, 2))));
+        assert_eq!(
+            tilemap.get_range(),
+            Some(Range2 {
+                x: (0, 2),
+                y: (0, 2)
+            })
+        );
 
         let input = "ABCABCABCABCABC";
         let tilemap: TileMap<MyTile> = TileMap::from_string(input);
-        assert_eq!(tilemap.get_range(), Some(((0, 14), (0, 0))));
+        assert_eq!(
+            tilemap.get_range(),
+            Some(Range2 {
+                x: (0, 14),
+                y: (0, 0)
+            })
+        );
     }
 }
