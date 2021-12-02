@@ -39,7 +39,7 @@ Each commit is checked with the following commands:
 * `cargo clippy -- -Dwarnings`
 
 # Execution times
-Time measurements were made using the command: `cargo aoc bench -d 1`, where 1 is replaced with the relevant day number. The average measurement was used; in some cases it would be more accurate to use the fastest measurement as this best represents how the program is capable of performing, however in other cases there is significant variability in the run time due to the program itself (such as when using hashes, which internally have random seeds).
+Time measurements were made using the command: `cargo aoc bench -d D`, where D is replaced with the relevant day number (1-25). The average measurement was used; in some cases it would be more accurate to use the fastest measurement as this best represents how the program is capable of performing, however in other cases there is significant variability in the run time due to the program itself (such as when using hashes, which internally have random seeds).
 
 Total: TBD
 
@@ -47,3 +47,5 @@ Day | Part | Time
 :--:| :--: | :-------:
 1   | 1    | 3.3656 us
 1   | 2    | 4.6081 us
+2   | 1    | 710.36 ns
+2   | 2    | 752.24 ns
