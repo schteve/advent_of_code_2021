@@ -14,7 +14,7 @@ Goals:
     * Use only features of the latest version of stable Rust.
     * No unsafe code.
 3. Learn or practice features of the Rust language where the solutions present an opportunity, even if it's not the ideal fit for the situation.
-4. Create efficient solutions. Without knowing hte puzzles, I would like to have all solutions execute within 1 second total. I usually choose good structure over optimization, but for days when the solution takes a long time to run the optimization may become a priority.
+4. Create efficient solutions. Without knowing the puzzles, I would like to have all solutions execute within 1 second total. I usually choose good structure over optimization, but for days when the solution takes a long time to run the optimization may become a priority.
 5. Use few external crates, relying mainly on the standard library.
 
 # Building and running
@@ -39,4 +39,11 @@ Each commit is checked with the following commands:
 * `cargo clippy -- -Dwarnings`
 
 # Execution times
-TBD
+Time measurements were made using the command: `cargo aoc bench -d 1`, where 1 is replaced with the relevant day number. The average measurement was used; in some cases it would be more accurate to use the fastest measurement as this best represents how the program is capable of performing, however in other cases there is significant variability in the run time due to the program itself (such as when using hashes, which internally have random seeds).
+
+Total: TBD
+
+Day | Part | Time
+:--:| :--: | :-------:
+1   | 1    | 3.3656 us
+1   | 2    | 4.6081 us
