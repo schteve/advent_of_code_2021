@@ -2,6 +2,7 @@ use nom::{
     character::complete::{digit1, multispace0, one_of},
     combinator::{map, map_res, opt, recognize},
     error::ParseError,
+    multi::many1,
     sequence::{delimited, pair, preceded, terminated},
     IResult, Parser,
 };
@@ -14,6 +15,13 @@ pub fn unsigned<T: FromStr>(input: &str) -> IResult<&str, T> {
 pub fn signed<T: FromStr>(input: &str) -> IResult<&str, T> {
     map_res(recognize(pair(opt(one_of("+-")), digit1)), |x: &str| {
         x.parse::<T>()
+    })(input)
+}
+
+pub fn binary(input: &str) -> IResult<&str, u32> {
+    // TODO: make this generic on any primitive integer rather than just u32
+    map_res(recognize(many1(one_of("01"))), |x: &str| {
+        u32::from_str_radix(x, 2)
     })(input)
 }
 
@@ -132,6 +140,34 @@ mod test {
         let (remain, num) = signed::<i64>(input).unwrap();
         assert_eq!(remain, "");
         assert_eq!(num, 1234567890123456789);
+    }
+
+    #[test]
+    fn test_binary() {
+        let input = "101";
+        let (remain, num) = binary(input).unwrap();
+        assert_eq!(remain, "");
+        assert_eq!(num, 5);
+
+        let input = "11111111111111111111111111111111";
+        let (remain, num) = binary(input).unwrap();
+        assert_eq!(remain, "");
+        assert_eq!(num, 0xFFFFFFFF);
+
+        let input = "101abc";
+        let (remain, num) = binary(input).unwrap();
+        assert_eq!(remain, "abc");
+        assert_eq!(num, 5);
+
+        let input = "0001abc";
+        let (remain, num) = binary(input).unwrap();
+        assert_eq!(remain, "abc");
+        assert_eq!(num, 1);
+
+        let input = "01234";
+        let (remain, num) = binary(input).unwrap();
+        assert_eq!(remain, "234");
+        assert_eq!(num, 1);
     }
 
     #[test]
