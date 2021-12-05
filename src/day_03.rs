@@ -78,6 +78,21 @@ pub struct Diagnostic {
 }
 
 impl Diagnostic {
+    fn parser(input: &str) -> IResult<&str, Self> {
+        let count_bits: IResult<&str, usize> = many1_count(one_of("01"))(input);
+        let valid_bits = count_bits.unwrap().1 as u32;
+        let mut numbers = many1(preceded(multispace0, binary))(input).unwrap().1;
+        numbers.sort_unstable();
+
+        Ok((
+            input,
+            Diagnostic {
+                numbers,
+                valid_bits,
+            },
+        ))
+    }
+
     fn gamma_epsilon_rate(&self) -> (u32, u32) {
         let mut gamma = 0;
         let mut epsilon = 0;
@@ -106,25 +121,45 @@ impl Diagnostic {
     }
 
     fn calc_rating(&self, bit_criteria_fn: fn(u32, u32) -> bool) -> u32 {
-        let mut candidates = self.numbers.clone();
+        // With the input data sorted, this puzzle becomes about splitting the list at the next bit,
+        // and keeping only the portion lower or higher than that point. Rather than searching the list
+        // every single iteration, we only need to examine the portion that falls within the range
+        // we care about.
+        let mut low_idx = 0;
+        let mut hi_idx = self.numbers.len() - 1;
+        let mut prefix = 0usize;
         for bit in (0..self.valid_bits).rev() {
-            let (ones, zeroes) = count_values_at_bit(&candidates, bit);
-            let bit_criteria = bit_criteria_fn(ones, zeroes);
-            let mut next_candidates = Vec::new();
-            for n in &candidates {
-                let bit_set = n & (1 << bit) != 0;
-                if bit_set == bit_criteria {
-                    next_candidates.push(*n);
-                }
+            // Find the prefix's location in the vector, or the first location greater than its value
+            let prefix_split = prefix | (1 << bit);
+            let mid_idx = (&self.numbers[low_idx..=hi_idx])
+                .iter()
+                .position(|x| *x >= prefix_split as u32)
+                .unwrap()
+                + low_idx;
+
+            // Zeroes are from low to mid (exclusive), ones are from mid (inclusive) to high
+            let ones = hi_idx - mid_idx + 1;
+            let zeroes = mid_idx - low_idx;
+            // Note: the case where there are no ones would appear as a panic on unwrap when finding mid_idx above.
+            // The case where there are no zeroes should work unless the puzzle is unsolvable (i.e. CO2 rating where the
+            // less common value has 0 appearances).
+
+            // Check against bit criteria
+            if bit_criteria_fn(ones as u32, zeroes as u32) == true {
+                // Keep upper portion
+                low_idx = mid_idx;
+                prefix |= 1 << bit;
+            } else {
+                // Keep lower portion
+                hi_idx = mid_idx - 1;
+                prefix &= !(1 << bit);
             }
-            candidates = next_candidates;
-            if candidates.len() == 1 {
-                break;
+
+            if low_idx == hi_idx {
+                return self.numbers[low_idx];
             }
         }
-
-        assert_eq!(candidates.len(), 1);
-        candidates[0]
+        panic!("Did not find match");
     }
 
     fn oxygen_rating(&self) -> u32 {
@@ -157,12 +192,7 @@ fn count_values_at_bit(numbers: &[u32], bit: u32) -> (u32, u32) {
 
 #[aoc_generator(day3)]
 pub fn input_generator(input: &str) -> Diagnostic {
-    let count_bits: IResult<&str, usize> = many1_count(one_of("01"))(input);
-    let valid_bits = count_bits.unwrap().1 as u32;
-    Diagnostic {
-        numbers: many1(preceded(multispace0, binary))(input).unwrap().1,
-        valid_bits,
-    }
+    Diagnostic::parser(input).unwrap().1
 }
 
 #[aoc(day3, part1)]
