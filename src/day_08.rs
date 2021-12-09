@@ -155,9 +155,44 @@ impl Entry {
         Ok((input, Self { patterns, outputs }))
     }
 
-    fn value(&self, digits: &Digits) -> usize {
-        let values: Vec<usize> = self.outputs.iter().map(|o| digits.value(o)).collect();
-        values[0] * 1000 + values[1] * 100 + values[2] * 10 + values[3]
+    fn value(&self) -> usize {
+        let mut value = 0;
+
+        let d1 = self.patterns.iter().find(|x| x.len() == 2).unwrap();
+        let d4 = self.patterns.iter().find(|x| x.len() == 4).unwrap();
+        let d7 = self.patterns.iter().find(|x| x.len() == 3).unwrap();
+
+        for o in &self.outputs {
+            let digit = match o.len() {
+                2 => 1,
+                3 => 7,
+                4 => 4,
+                5 => {
+                    if o.union(d4).count() == 7 {
+                        2 // Add the segments from a 4 and it should make an 8
+                    } else if o.is_superset(d7) == true {
+                        3 // The only one that is a superset of 7
+                    } else {
+                        5 // Otherwise must be a 5
+                    }
+                }
+                6 => {
+                    if o.union(d1).count() == 7 {
+                        6 // Add the segments from a 1 and it should make an 8
+                    } else if o.is_superset(d4) == true {
+                        9 // The only one that is a superset of 4
+                    } else {
+                        0 // Otherwise must be a 0
+                    }
+                }
+                7 => 8,
+                x => panic!("Invalid length {} for pattern {:?}", x, o),
+            };
+
+            value = value * 10 + digit;
+        }
+
+        value
     }
 }
 
@@ -173,172 +208,8 @@ fn count_1478(entries: &[Entry]) -> usize {
     count
 }
 
-struct Lens {
-    len2: Signal,
-    len3: Signal,
-    len4: Signal,
-    len5: Vec<Signal>,
-    len6: Vec<Signal>,
-    len7: Signal,
-}
-
-impl Lens {
-    fn from_entry(entry: &Entry) -> Self {
-        let mut len2 = Vec::new();
-        let mut len3 = Vec::new();
-        let mut len4 = Vec::new();
-        let mut len5 = Vec::new();
-        let mut len6 = Vec::new();
-        let mut len7 = Vec::new();
-
-        for pattern in entry.patterns.iter().cloned() {
-            match pattern.len() {
-                2 => len2.push(pattern),
-                3 => len3.push(pattern),
-                4 => len4.push(pattern),
-                5 => len5.push(pattern),
-                6 => len6.push(pattern),
-                7 => len7.push(pattern),
-                x => panic!("Invalid pattern length of {} for {:?}", x, pattern),
-            }
-        }
-
-        assert_eq!(len2.len(), 1);
-        assert_eq!(len3.len(), 1);
-        assert_eq!(len4.len(), 1);
-        assert_eq!(len5.len(), 3);
-        assert_eq!(len6.len(), 3);
-        assert_eq!(len7.len(), 1);
-
-        Self {
-            len2: len2.remove(0),
-            len3: len3.remove(0),
-            len4: len4.remove(0),
-            len5,
-            len6,
-            len7: len7.remove(0),
-        }
-    }
-}
-
-struct Digits {
-    d0: Signal,
-    d1: Signal,
-    d2: Signal,
-    d3: Signal,
-    d4: Signal,
-    d5: Signal,
-    d6: Signal,
-    d7: Signal,
-    d8: Signal,
-    d9: Signal,
-}
-
-impl Digits {
-    fn from_lens(lens: &Lens) -> Self {
-        // Digits 1, 4, 7, 8 are freebies
-        let d1 = lens.len2.clone();
-        let d4 = lens.len4.clone();
-        let d7 = lens.len3.clone();
-        let d8 = lens.len7.clone();
-
-        // To tell which length 5 signal is a 2, add the segments from a 4 and it should make an 8
-        let d2 = lens
-            .len5
-            .iter()
-            .find(|x| x.union(&d4).count() == 7)
-            .unwrap()
-            .clone();
-
-        // To tell which length 5 signal is a 3, find the one which is a superset of 7
-        let d3 = lens
-            .len5
-            .iter()
-            .find(|x| x.is_superset(&d7))
-            .unwrap()
-            .clone();
-
-        // 5 is the remaining length 5 signal
-        let d5 = lens
-            .len5
-            .iter()
-            .find(|&x| x != &d2 && x != &d3)
-            .unwrap()
-            .clone();
-
-        // To tell which length 6 signal is a 6, add the segments from a 1 and it should make an 8
-        let d6 = lens
-            .len6
-            .iter()
-            .find(|x| x.union(&d1).count() == 7)
-            .unwrap()
-            .clone();
-
-        // To tell which length 6 signal is a 9, find the one which is a superset of 4
-        let d9 = lens
-            .len6
-            .iter()
-            .find(|x| x.is_superset(&d4))
-            .unwrap()
-            .clone();
-
-        // 0 is the remaining length 6 signal
-        let d0 = lens
-            .len6
-            .iter()
-            .find(|&x| x != &d6 && x != &d9)
-            .unwrap()
-            .clone();
-
-        Self {
-            d0,
-            d1,
-            d2,
-            d3,
-            d4,
-            d5,
-            d6,
-            d7,
-            d8,
-            d9,
-        }
-    }
-
-    fn value(&self, signal: &Signal) -> usize {
-        if signal == &self.d0 {
-            0
-        } else if signal == &self.d1 {
-            1
-        } else if signal == &self.d2 {
-            2
-        } else if signal == &self.d3 {
-            3
-        } else if signal == &self.d4 {
-            4
-        } else if signal == &self.d5 {
-            5
-        } else if signal == &self.d6 {
-            6
-        } else if signal == &self.d7 {
-            7
-        } else if signal == &self.d8 {
-            8
-        } else if signal == &self.d9 {
-            9
-        } else {
-            panic!("Invalid signal: {:?}", signal)
-        }
-    }
-}
-
-fn solve_entry(entry: &Entry) -> usize {
-    let lens = Lens::from_entry(entry);
-    let digits = Digits::from_lens(&lens);
-    entry.value(&digits)
-}
-
 fn solve_entries(entries: &[Entry]) -> usize {
-    entries.iter().map(solve_entry).sum()
+    entries.iter().map(|e| e.value()).sum()
 }
 
 #[aoc_generator(day8)]
@@ -394,20 +265,19 @@ gcafb gcf dcaebfg ecagb gf abcdeg gaef cafbge fdbac fegbdc | fgae cfgab fg bagce
     #[test]
     fn test_solve_entry() {
         let input = input_generator(EXAMPLE_INPUT1);
-        let value = solve_entry(&input[0]);
-        assert_eq!(value, 5353);
+        assert_eq!(input[0].value(), 5353);
 
         let input = input_generator(EXAMPLE_INPUT2);
-        assert_eq!(solve_entry(&input[0]), 8394);
-        assert_eq!(solve_entry(&input[1]), 9781);
-        assert_eq!(solve_entry(&input[2]), 1197);
-        assert_eq!(solve_entry(&input[3]), 9361);
-        assert_eq!(solve_entry(&input[4]), 4873);
-        assert_eq!(solve_entry(&input[5]), 8418);
-        assert_eq!(solve_entry(&input[6]), 4548);
-        assert_eq!(solve_entry(&input[7]), 1625);
-        assert_eq!(solve_entry(&input[8]), 8717);
-        assert_eq!(solve_entry(&input[9]), 4315);
+        assert_eq!(input[0].value(), 8394);
+        assert_eq!(input[1].value(), 9781);
+        assert_eq!(input[2].value(), 1197);
+        assert_eq!(input[3].value(), 9361);
+        assert_eq!(input[4].value(), 4873);
+        assert_eq!(input[5].value(), 8418);
+        assert_eq!(input[6].value(), 4548);
+        assert_eq!(input[7].value(), 1625);
+        assert_eq!(input[8].value(), 8717);
+        assert_eq!(input[9].value(), 4315);
     }
 
     #[test]
