@@ -149,7 +149,7 @@ use nom::{
 };
 use std::collections::HashMap;
 
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 enum Cave {
     Big(String),
     Small(String),
@@ -185,21 +185,36 @@ impl CaveSystem {
         Ok((input, Self { connections }))
     }
 
-    fn enumerate_paths(&self, mode: Mode) -> Vec<Vec<Cave>> {
+    fn enumerate_paths(&self, mode: Mode) -> Vec<Vec<&Cave>> {
         // First build the set of 'cave exits' - for each cave, what are all the ways out of it.
         // The 'connections' in the input are just each individual exit.
-        let mut cave_exits: HashMap<Cave, Vec<Cave>> = HashMap::new();
+        let mut cave_exits: HashMap<&Cave, Vec<&Cave>> = HashMap::new();
         for (a, b) in &self.connections {
             // Assume there are no duplicates in the connections list
-            let entry = cave_exits.entry(a.clone()).or_insert_with(Vec::new);
-            entry.push(b.clone());
-            let entry = cave_exits.entry(b.clone()).or_insert_with(Vec::new);
-            entry.push(a.clone());
+            let entry = cave_exits.entry(a).or_insert_with(Vec::new);
+            entry.push(b);
+            let entry = cave_exits.entry(b).or_insert_with(Vec::new);
+            entry.push(a);
         }
 
         let mut finished_paths = Vec::new();
+        let start = self
+            .connections
+            .iter()
+            .filter_map(|x| {
+                let start = Cave::Small("start".into());
+                if x.0 == start {
+                    Some(&x.0)
+                } else if x.1 == start {
+                    Some(&x.1)
+                } else {
+                    None
+                }
+            })
+            .next()
+            .unwrap(); // This looks insane, but since it gets inserted in the returned collection it's necessary to reference an existing item rather than create a new one
         let end = Cave::Small("end".into());
-        let mut paths_in_progress = vec![vec![Cave::Small("start".into())]];
+        let mut paths_in_progress = vec![vec![start]];
         let mut paths_revisited = vec![false];
         while let Some(curr_path) = paths_in_progress.pop() {
             let revisited = paths_revisited.pop().unwrap();
@@ -224,8 +239,8 @@ impl CaveSystem {
                 }
 
                 let mut next = curr_path.clone();
-                next.push(exit.clone());
-                if exit == &end {
+                next.push(*exit);
+                if exit == &&end {
                     finished_paths.push(next);
                 } else {
                     paths_in_progress.push(next);
@@ -307,7 +322,7 @@ pj-fs
 start-RW
 ";
 
-    fn path_to_string(path: &[Cave]) -> String {
+    fn path_to_string(path: &[&Cave]) -> String {
         let strs: Vec<String> = path
             .iter()
             .map(|cave| match cave {
