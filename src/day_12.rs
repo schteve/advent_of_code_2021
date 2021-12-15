@@ -331,7 +331,7 @@ start-RW
             })
             .collect();
 
-        strs.join(",".into())
+        strs.join(",")
     }
 
     #[test]
