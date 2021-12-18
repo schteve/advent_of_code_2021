@@ -1,3 +1,5 @@
+use std::cmp::{max, min};
+
 use crate::common::Point2;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -7,8 +9,22 @@ pub struct Range2 {
 }
 
 impl Range2 {
+    pub const fn origin() -> Self {
+        Self {
+            x: (0, 0),
+            y: (0, 0),
+        }
+    }
+
     pub fn contains(&self, p: Point2) -> bool {
         self.x.0 <= p.x && p.x <= self.x.1 && self.y.0 <= p.y && p.y <= self.y.1
+    }
+
+    pub fn expand(&mut self, p: &Point2) {
+        self.x.0 = min(self.x.0, p.x);
+        self.x.1 = max(self.x.1, p.x);
+        self.y.0 = min(self.y.0, p.y);
+        self.y.1 = max(self.y.1, p.y);
     }
 }
 

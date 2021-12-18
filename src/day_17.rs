@@ -66,8 +66,10 @@ impl Probe {
 
 fn find_most_stylish(target: &Range2) -> i32 {
     let mut best = None;
-    for x in -1000..=1000 {
-        for y in -1000..=1000 {
+    let target_x_max = max(target.x.0.abs(), target.x.1.abs());
+    let target_y_max = max(target.y.0.abs(), target.y.1.abs());
+    for x in -target_x_max..=target_x_max {
+        for y in -target_y_max..=target_y_max {
             let mut probe = Probe::from_vel(Point2 { x, y });
             let res = probe.simulate(target);
             if let Some(n) = res {
@@ -86,8 +88,10 @@ fn find_most_stylish(target: &Range2) -> i32 {
 
 fn count_hits(target: &Range2) -> u32 {
     let mut count = 0;
-    for x in -1000..=1000 {
-        for y in -1000..=1000 {
+    let target_x_max = max(target.x.0.abs(), target.x.1.abs());
+    let target_y_max = max(target.y.0.abs(), target.y.1.abs());
+    for x in -target_x_max..=target_x_max {
+        for y in -target_y_max..=target_y_max {
             let mut probe = Probe::from_vel(Point2 { x, y });
             let res = probe.simulate(target);
             if res.is_some() {
