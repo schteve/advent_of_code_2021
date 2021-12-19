@@ -1,5 +1,3 @@
-use std::cmp::max;
-
 /*
 
 */
@@ -144,7 +142,7 @@ impl Line {
     }
 
     fn add(&mut self, mut other: Line) {
-        if self.data.len() == 0 {
+        if self.data.is_empty() == true {
             self.data.append(&mut other.data);
         } else {
             self.data.insert(0, Element::PairOpen);
@@ -163,7 +161,10 @@ impl Line {
                 0
             };
             for idx in 0..max_len {
-                if self.data[idx] == Element::PairOpen && self.data[idx + 2] == Element::PairSep && self.data[idx + 4] == Element::PairClose {
+                if self.data[idx] == Element::PairOpen
+                    && self.data[idx + 2] == Element::PairSep
+                    && self.data[idx + 4] == Element::PairClose
+                {
                     let n = if let Element::Number(n) = self.data[idx + 1] {
                         n
                     } else {
@@ -178,7 +179,7 @@ impl Line {
 
                     // Replace first index in pair with magnitude and drain the rest
                     self.data[idx] = Element::Number(mag);
-                    self.data.drain(idx + 1 ..= idx + 4);
+                    self.data.drain(idx + 1..=idx + 4);
                     continue 'top;
                 }
             }
@@ -186,7 +187,7 @@ impl Line {
         }
 
         if let Element::Number(n) = self.data[0] {
-            return n;
+            n
         } else {
             panic!("Magnitude calculation failed");
         }
@@ -241,7 +242,7 @@ impl std::fmt::Display for Line {
 
 #[aoc_generator(day18)]
 pub fn input_generator(input: &str) -> Vec<Line> {
-    input.lines().map(|line| Line::parse(line)).collect()
+    input.lines().map(Line::parse).collect()
 }
 
 #[aoc(day18, part1)]
@@ -307,17 +308,23 @@ mod test {
 
     #[test]
     fn test_splice() {
-        let mut line = Line { data: vec![Element::Number(10)]};
+        let mut line = Line {
+            data: vec![Element::Number(10)],
+        };
         let res = line.split();
         assert_eq!(res, true);
         assert_eq!(line.to_string(), "[5,5]");
 
-        let mut line = Line { data: vec![Element::Number(11)]};
+        let mut line = Line {
+            data: vec![Element::Number(11)],
+        };
         let res = line.split();
         assert_eq!(res, true);
         assert_eq!(line.to_string(), "[5,6]");
 
-        let mut line = Line { data: vec![Element::Number(12)]};
+        let mut line = Line {
+            data: vec![Element::Number(12)],
+        };
         let res = line.split();
         assert_eq!(res, true);
         assert_eq!(line.to_string(), "[6,6]");
@@ -372,12 +379,14 @@ mod test {
 
     #[test]
     fn test_sum_list() {
-        let lines = input_generator("\
+        let lines = input_generator(
+            "\
 [1,1]
 [2,2]
 [3,3]
 [4,4]
-");
+",
+        );
         let result = sum_list(lines);
         assert_eq!(result.to_string(), "[[[[1,1],[2,2]],[3,3]],[4,4]]");
     }
