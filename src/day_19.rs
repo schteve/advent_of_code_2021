@@ -101,6 +101,7 @@ impl Scanner {
                         count += 1;
                     }
                 }
+                // TODO: bail early if there's not enough remaining beacons
 
                 match count.cmp(&overlap_criteria) {
                     Ordering::Equal => return Some(offset),
@@ -170,28 +171,30 @@ fn rotate_point_around_axis(p: &Point3, axis: XYZ, n: u32) -> Point3 {
 }
 
 fn find_all_positions(scanners: &[Scanner]) -> Vec<Scanner> {
-    let mut oriented = scanners.to_vec();
-    oriented[0].position = Some(Point3::origin());
-    oriented[0].orientation = Some(Orientation::new());
+    let mut undetermined = scanners.to_vec();
+    let mut origin = undetermined.remove(0);
+    origin.position = Some(Point3::origin());
+    origin.orientation = Some(Orientation::new());
+    let mut oriented = vec![origin];
+
+    let mut keep: Vec<bool> = Vec::new();
     loop {
-        'undetermined: for i in 1..oriented.len() {
-            // Find one that's not yet determined
-            if oriented[i].position.is_none() {
-                // Check against the ones that are already determined
-                for j in 0..oriented.len() {
-                    if oriented[j].position.is_some() {
-                        //println!("Check known {} against unknown {}", j, i);
-                        // TODO: keep track of which combinations have been tried so we don't spend time redoing them
-                        if let Some(s) = oriented[j].check_overlap_oriented(&scanners[i], 12) {
-                            oriented[i] = s;
-                            continue 'undetermined;
-                        }
-                    }
+        keep.clear();
+        'undet: for undet in &undetermined {
+            for i in 0..oriented.len() {
+                if let Some(s) = oriented[i].check_overlap_oriented(undet, 12) {
+                    oriented.push(s);
+                    keep.push(false);
+                    continue 'undet;
                 }
             }
+            keep.push(true);
         }
 
-        if oriented.iter().all(|s| s.position.is_some()) == true {
+        let mut keep_iter = keep.iter();
+        undetermined.retain(|_| *keep_iter.next().unwrap());
+
+        if undetermined.is_empty() == true {
             break;
         }
     }
@@ -249,6 +252,7 @@ pub fn part2(input: &[Scanner]) -> u32 {
 #[cfg(test)]
 mod test {
     use super::*;
+    use std::collections::HashSet;
 
     static EXAMPLE_INPUT1: &str = "\
 --- scanner 0 ---
@@ -517,7 +521,7 @@ mod test {
         let scanners = input_generator(EXAMPLE_INPUT3);
 
         let oriented = find_all_positions(&scanners);
-        let positions: Vec<Point3> = oriented.into_iter().filter_map(|s| s.position).collect();
+        let positions: HashSet<Point3> = oriented.into_iter().filter_map(|s| s.position).collect();
         assert_eq!(
             positions,
             vec![
@@ -527,6 +531,8 @@ mod test {
                 (-92, -2380, -20).into(),
                 (-20, -1133, 1061).into(),
             ]
+            .into_iter()
+            .collect()
         );
     }
 
