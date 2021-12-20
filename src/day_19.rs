@@ -10,7 +10,7 @@ use nom::{
     sequence::{preceded, tuple},
     IResult,
 };
-use std::cmp::Ordering;
+use std::{cmp::Ordering, collections::HashSet};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum XYZ {
@@ -181,15 +181,22 @@ fn find_all_positions(scanners: &[Scanner]) -> Vec<Scanner> {
     origin.orientation = Some(Orientation::new());
     let mut oriented = vec![origin];
 
+    let mut tried: HashSet<(u32, u32)> = HashSet::new();
+
     let mut keep: Vec<bool> = Vec::new();
     loop {
         keep.clear();
         'undet: for undet in &undetermined {
             for i in 0..oriented.len() {
-                if let Some(s) = oriented[i].check_overlap_oriented(undet, 12) {
+                if tried.contains(&(oriented[i].id, undet.id)) == true {
+                    // We already tried it, skip it
+                } else if let Some(s) = oriented[i].check_overlap_oriented(undet, 12) {
                     oriented.push(s);
                     keep.push(false);
                     continue 'undet;
+                } else {
+                    // Mark that we tried this combination so we don't do it again
+                    tried.insert((oriented[i].id, undet.id));
                 }
             }
             keep.push(true);
