@@ -95,13 +95,17 @@ impl Scanner {
                 // Use self - other here because it makes the final answer more intuitive e.g. the answer has positive x if other is to the right of self.
                 let offset = self_p - other_p;
                 let mut count = 0;
-                for check_p in &other.beacons {
-                    let offset_check = check_p + offset;
-                    if self.beacons.contains(&offset_check) {
-                        count += 1;
+                for (i, check_p) in other.beacons.iter().enumerate() {
+                    if (other.beacons.len() - i) < (overlap_criteria - count) as usize {
+                        // Not enough beacons left to possibly reach the criteria count
+                        break;
+                    } else {
+                        let offset_check = check_p + offset;
+                        if self.beacons.contains(&offset_check) {
+                            count += 1;
+                        }
                     }
                 }
-                // TODO: bail early if there's not enough remaining beacons
 
                 match count.cmp(&overlap_criteria) {
                     Ordering::Equal => return Some(offset),
