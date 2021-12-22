@@ -34,8 +34,6 @@
 
     Play a practice game using the deterministic 100-sided die. The moment either player wins, what do you get if you multiply the score of the losing player by the number of times the die was rolled during the game?
 
-    The first half of this puzzle is complete! It provides one gold star: *
-
     --- Part Two ---
     Now that you're warmed up, it's time to play the real game.
 
