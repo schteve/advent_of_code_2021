@@ -400,20 +400,22 @@ impl Orientation {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Scanner {
     id: u32,
-    beacons: Vec<Point3>, // TODO: see if HashSet is more efficient
+    beacons: Vec<Point3>,
     position: Option<Point3>,
     orientation: Option<Orientation>,
 }
 
 impl Scanner {
     fn parser(input: &str) -> IResult<&str, Self> {
-        let (input, (_, _, id, _, beacons)) = tuple((
+        let (input, (_, _, id, _, mut beacons)) = tuple((
             multispace0,
             tag("--- scanner "),
             unsigned,
             tag(" ---"),
             many1(preceded(multispace0, Point3::parser)),
         ))(input)?;
+
+        beacons.sort_unstable();
 
         Ok((
             input,
@@ -441,7 +443,9 @@ impl Scanner {
             beacons.push(new_p);
         }
 
-        Scanner {
+        beacons.sort_unstable();
+
+        Self {
             id: self.id,
             beacons,
             position: self.position,
@@ -449,7 +453,7 @@ impl Scanner {
         }
     }
 
-    fn check_overlap(&self, other: &Scanner, overlap_criteria: u32) -> Option<Point3> {
+    fn check_overlap(&self, other: &Self, overlap_criteria: u32) -> Option<Point3> {
         for self_p in &self.beacons {
             for other_p in &other.beacons {
                 // Use self - other here because it makes the final answer more intuitive e.g. the answer has positive x if other is to the right of self.
@@ -478,13 +482,13 @@ impl Scanner {
         None
     }
 
-    fn check_overlap_oriented(&self, other: &Scanner, overlap_criteria: u32) -> Option<Scanner> {
+    fn check_overlap_oriented(&self, other: &Self, overlap_criteria: u32) -> Option<Self> {
         for facing in [XYZ::X, XYZ::Y, XYZ::Z, XYZ::NX, XYZ::NY, XYZ::NZ] {
             for n in 0..4 {
                 let oriented = other.orient(Orientation { facing, n });
                 if let Some(s) = self.check_overlap(&oriented, overlap_criteria) {
-                    return Some(Scanner {
-                        position: Some(self.position.unwrap() + s),
+                    return Some(Self {
+                        position: self.position.map(|x| x + s),
                         ..oriented
                     });
                 }
