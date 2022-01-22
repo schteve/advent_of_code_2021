@@ -464,27 +464,50 @@ impl Burrow {
                     continue;
                 }
             }
+
+            // Get all possible moves for all amphipods
+            let mut all_moves: Vec<(usize, Point2, u32)> = Vec::new();
             for (i, amphipod) in curr_state.iter().enumerate() {
                 //println!("    Moves for [{}] @ {:?}:", i, amphipod);
-                for m in self.moves(&curr_state, amphipod) {
-                    //println!("        {} cost {}", m.0, m.1);
-                    let mut next_state = curr_state.clone();
-                    next_state[i].pos = m.0;
-                    next_state.sort_unstable_by_key(|a| a.pos);
-                    let next_cost = curr_cost + m.1;
-                    if let Some(best_cost) = best_states.get(&next_state) {
-                        if next_cost >= *best_cost {
-                            // Next isn't better so don't bother with it
-                        } else {
-                            //println!("        Push next cost {}: {:?}", next_cost, next_state);
-                            states.push((next_state.clone(), next_cost));
-                            best_states.insert(next_state, next_cost);
-                        }
+                for (p, cost) in self.moves(&curr_state, amphipod) {
+                    all_moves.push((i, p, cost));
+                }
+            }
+
+            // Find the subset of moves which lead to a room
+            let mut room_moves: Vec<(usize, Point2, u32)> = Vec::new();
+            for (i, p, cost) in all_moves.iter().copied() {
+                if matches!(self.map.get(&p).unwrap(), Space::Room(_)) {
+                    room_moves.push((i, p, cost));
+                }
+            }
+
+            // If there are moves that go to rooms, only consider those options. This improves the efficiency of the search
+            // by discarding many intermediate states. If there aren't any moves that go to rooms, consider all options.
+            let moves_iter = if room_moves.is_empty() == false {
+                room_moves.into_iter()
+            } else {
+                all_moves.into_iter()
+            };
+
+            for (i, p, cost) in moves_iter {
+                //println!("        {} cost {}", m.0, m.1);
+                let mut next_state = curr_state.clone();
+                next_state[i].pos = p;
+                next_state.sort_unstable_by_key(|a| a.pos);
+                let next_cost = curr_cost + cost;
+                if let Some(best_cost) = best_states.get(&next_state) {
+                    if next_cost >= *best_cost {
+                        // Next isn't better so don't bother with it
                     } else {
                         //println!("        Push next cost {}: {:?}", next_cost, next_state);
                         states.push((next_state.clone(), next_cost));
                         best_states.insert(next_state, next_cost);
                     }
+                } else {
+                    //println!("        Push next cost {}: {:?}", next_cost, next_state);
+                    states.push((next_state.clone(), next_cost));
+                    best_states.insert(next_state, next_cost);
                 }
             }
             states.sort_unstable_by_key(|x| Reverse(x.1));
