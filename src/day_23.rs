@@ -309,9 +309,12 @@
 */
 
 use crate::common::{Mode, Point2};
-use std::{cmp::Reverse, collections::HashMap};
+use std::{
+    cmp::Reverse,
+    collections::{BinaryHeap, HashMap},
+};
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 enum AmphiKind {
     A,
     B,
@@ -349,7 +352,7 @@ impl AmphiKind {
     }
 }
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 struct Amphipod {
     pos: Point2,
     kind: AmphiKind,
@@ -361,6 +364,9 @@ enum Space {
     Hallway,
     HallwayCantStop,
 }
+
+#[derive(Eq, Ord, PartialEq, PartialOrd)]
+struct Node(u32, Vec<Amphipod>);
 
 pub struct Burrow {
     map: HashMap<Point2, Space>,
@@ -449,11 +455,10 @@ impl Burrow {
         let mut best_states: HashMap<Vec<Amphipod>, u32> = HashMap::new();
         best_states.insert(self.start.clone(), 0);
 
-        let mut states: Vec<(Vec<Amphipod>, u32)> = vec![(self.start.clone(), 0)]; // TODO: better representation for state other than a vec?
-        while states.is_empty() == false {
+        let mut states: BinaryHeap<Reverse<Node>> = BinaryHeap::new();
+        states.push(Reverse(Node(0, self.start.clone())));
+        while let Some(Reverse(Node(curr_cost, curr_state))) = states.pop() {
             //println!("States: {}", states.len());
-            let (curr_state, curr_cost) = states.pop().unwrap(); // TODO: can use while let pop?
-
             //println!("Try cost {}:", curr_cost);
             //println!("{}", BurrowDisplay(self, &curr_state));
             if curr_state == end_state {
@@ -501,17 +506,15 @@ impl Burrow {
                         // Next isn't better so don't bother with it
                     } else {
                         //println!("        Push next cost {}: {:?}", next_cost, next_state);
-                        states.push((next_state.clone(), next_cost));
+                        states.push(Reverse(Node(next_cost, next_state.clone())));
                         best_states.insert(next_state, next_cost);
                     }
                 } else {
                     //println!("        Push next cost {}: {:?}", next_cost, next_state);
-                    states.push((next_state.clone(), next_cost));
+                    states.push(Reverse(Node(next_cost, next_state.clone())));
                     best_states.insert(next_state, next_cost);
                 }
             }
-            states.sort_unstable_by_key(|x| Reverse(x.1));
-            states.dedup();
         }
 
         best_states[&end_state]
