@@ -308,21 +308,21 @@
     Using the initial configuration from the full diagram, what is the least energy required to organize the amphipods?
 */
 
-use crate::common::{Mode, Point2};
+use crate::common::Point2;
 use std::{
     cmp::Reverse,
     collections::{BinaryHeap, HashMap},
 };
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-enum AmphiKind {
+enum Amphipod {
     A,
     B,
     C,
     D,
 }
 
-impl AmphiKind {
+impl Amphipod {
     fn cost(&self) -> u32 {
         match self {
             Self::A => 1,
@@ -338,7 +338,7 @@ impl AmphiKind {
             'B' => Self::B,
             'C' => Self::C,
             'D' => Self::D,
-            _ => unreachable!(),
+            x => panic!("Invalid amphipod char: {}", x),
         }
     }
 
@@ -350,35 +350,46 @@ impl AmphiKind {
             Self::D => 'D',
         }
     }
+
+    fn room_idx(&self) -> usize {
+        match self {
+            Self::A => 0,
+            Self::B => 1,
+            Self::C => 2,
+            Self::D => 3,
+        }
+    }
+
+    const ALL: [Self; 4] = [Self::A, Self::B, Self::C, Self::D];
+    fn iter() -> impl Iterator<Item = Self> {
+        Self::ALL.into_iter()
+    }
 }
 
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-struct Amphipod {
-    pos: Point2,
-    kind: AmphiKind,
+#[derive(Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+struct State<const N: usize>(u32, Burrow<N>);
+
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+struct Burrow<const N: usize> {
+    hallway: [Option<Amphipod>; 7],
+    rooms: [[Option<Amphipod>; N]; 4],
 }
 
-#[derive(Debug, PartialEq)]
-enum Space {
-    Room(AmphiKind),
-    Hallway,
-    HallwayCantStop,
-}
+impl<const N: usize> Burrow<N> {
+    const END_STATE: Self = Self {
+        hallway: [None; 7],
+        rooms: [
+            [Some(Amphipod::A); N],
+            [Some(Amphipod::B); N],
+            [Some(Amphipod::C); N],
+            [Some(Amphipod::D); N],
+        ],
+    };
 
-#[derive(Eq, Ord, PartialEq, PartialOrd)]
-struct Node(u32, Vec<Amphipod>);
-
-pub struct Burrow {
-    map: HashMap<Point2, Space>,
-    start: Vec<Amphipod>,
-    rooms: HashMap<AmphiKind, Vec<Point2>>,
-}
-
-impl Burrow {
-    fn from_string(input: &str, mode: Mode) -> Self {
+    fn from_string(input: &str) -> Self {
         let mut input_string = String::new();
         for (i, line) in input.lines().enumerate() {
-            if mode == Mode::M2 && i == 3 {
+            if N == 4 && i == 3 {
                 input_string.push_str("  #D#C#B#A#\n");
                 input_string.push_str("  #D#B#A#C#\n");
             }
@@ -386,295 +397,294 @@ impl Burrow {
             input_string.push('\n');
         }
 
-        let mut start = Vec::new();
-        let mut map = HashMap::new();
+        let mut burrow = Self::new();
         for (y, line) in input_string.lines().enumerate() {
             let mut room = 0;
             for (x, c) in line.chars().enumerate() {
-                let p = Point2 {
-                    x: x as i32,
-                    y: y as i32,
-                };
                 match c {
                     '#' | ' ' => (),
                     '.' => {
-                        if [3, 5, 7, 9].contains(&p.x) == true {
-                            map.insert(p, Space::HallwayCantStop);
-                        } else {
-                            map.insert(p, Space::Hallway);
+                        if y >= 2 {
+                            room += 1;
                         }
                     }
                     'A'..='D' => {
-                        let amphipod = Amphipod {
-                            pos: p,
-                            kind: AmphiKind::from_char(c),
-                        };
-                        start.push(amphipod);
-
-                        let room_type = match room {
-                            0 => AmphiKind::A,
-                            1 => AmphiKind::B,
-                            2 => AmphiKind::C,
-                            3 => AmphiKind::D,
-                            _ => panic!("Invalid room {}", room),
-                        };
-                        map.insert(p, Space::Room(room_type));
-                        room += 1;
+                        let amph = Some(Amphipod::from_char(c));
+                        if y == 1 {
+                            let idx = Self::x_to_hall_idx(x as i32);
+                            burrow.hallway[idx] = amph;
+                        } else if y >= 2 {
+                            burrow.rooms[room][y - 2] = amph;
+                            room += 1;
+                        }
                     }
                     _ => panic!("Unknown character: {}", c),
                 }
             }
         }
+        burrow
+    }
 
-        let mut rooms = HashMap::new();
-        for (p, space) in &map {
-            if let Space::Room(a) = space {
-                let entry = rooms.entry(*a).or_insert_with(Vec::new);
-                entry.push(*p);
+    fn new() -> Self {
+        Self {
+            hallway: [None; 7],
+            rooms: [[None; N]; 4],
+        }
+    }
+
+    fn hall_idx_to_p(idx: usize) -> Point2 {
+        // Origin is at hallway idx 0
+        match idx {
+            0 => (0, 0),
+            1 => (1, 0),
+            2 => (3, 0),
+            3 => (5, 0),
+            4 => (7, 0),
+            5 => (9, 0),
+            6 => (10, 0),
+            x => panic!("Invalid hallway idx: {}", x),
+        }
+        .into()
+    }
+
+    fn x_to_hall_idx(x: i32) -> usize {
+        // Some x coordinates (the rooms) fall between hallways indexes; we choose the one to the right
+        // because it makes other calculations nice.
+        match x {
+            0 => 0,
+            1 => 1,
+            2 => 2,
+            3 => 2,
+            4 => 3,
+            5 => 3,
+            6 => 4,
+            7 => 4,
+            8 => 5,
+            9 => 5,
+            10 => 6,
+            _ => panic!("Invalid x coordinate: {}", x),
+        }
+    }
+
+    fn room_idx_to_p(amph: Amphipod, idx: usize) -> Point2 {
+        let x = match amph {
+            Amphipod::A => 2,
+            Amphipod::B => 4,
+            Amphipod::C => 6,
+            Amphipod::D => 8,
+        };
+        Point2 {
+            x,
+            y: (idx + 1) as i32,
+        }
+    }
+
+    fn rooms_to_hallway_moves(&self) -> Vec<State<N>> {
+        let mut states = Vec::new();
+        for room in Amphipod::iter() {
+            if self.is_room_ready(room) == false {
+                // Only move out of non-ready rooms (if they're ready, we should be moving into them)
+                if let Some(room_idx) = self.room_output_idx(room) {
+                    // Found an amphipod in a room that it doesn't belong in
+                    let amph = self.rooms[room.room_idx()][room_idx].unwrap();
+                    for hall_idx in 0..self.hallway.len() {
+                        // Is the hallway space ready? Can it move to this space?
+                        if self.hallway[hall_idx].is_none() == true
+                            && self.is_path_open(hall_idx, room) == true
+                        {
+                            // Yes and yes. Move it there.
+                            let mut next = *self;
+
+                            // Remove from the room
+                            next.rooms[room.room_idx()][room_idx] = None;
+
+                            // Add to the hallway
+                            next.hallway[hall_idx] = Some(amph);
+
+                            // Calculate the cost
+                            let hall_p = Self::hall_idx_to_p(hall_idx);
+                            let room_p = Self::room_idx_to_p(room, room_idx);
+                            let cost = Point2::manhattan(hall_p, room_p) * amph.cost();
+                            states.push(State(cost, next));
+                        }
+                    }
+                }
             }
         }
-        for room in rooms.values_mut() {
-            room.sort_unstable();
-        }
+        states
+    }
 
-        Self { map, start, rooms }
+    fn hallway_to_rooms_moves(&self) -> Vec<State<N>> {
+        let mut states = Vec::new();
+        for (hall_idx, h) in self.hallway.into_iter().enumerate() {
+            if let Some(amph) = h {
+                // Found an amphipod in the hall. Is its room ready for it? Can it move to its room?
+                if self.is_room_ready(amph) == true && self.is_path_open(hall_idx, amph) == true {
+                    // Yes and yes. Move it there.
+                    let mut next = *self;
+
+                    // Remove from the hallway
+                    next.hallway[hall_idx] = None;
+
+                    // Add to the room
+                    let room_idx = next.room_input_idx(amph);
+                    next.rooms[amph.room_idx()][room_idx] = Some(amph);
+
+                    // Calculate the cost
+                    let hall_p = Self::hall_idx_to_p(hall_idx);
+                    let room_p = Self::room_idx_to_p(amph, room_idx);
+                    let cost = Point2::manhattan(hall_p, room_p) * amph.cost();
+                    states.push(State(cost, next));
+                }
+            }
+        }
+        states
+    }
+
+    fn is_room_ready(&self, amph: Amphipod) -> bool {
+        self.rooms[amph.room_idx()].iter().all(|r| match r {
+            None => true,
+            &Some(x) if x == amph => true,
+            _ => false,
+        })
+    }
+
+    fn is_path_open(&self, hall_idx: usize, amph: Amphipod) -> bool {
+        let room_p = Self::room_idx_to_p(amph, 0);
+        let room_idx = Self::x_to_hall_idx(room_p.x);
+        let range = if hall_idx < room_idx {
+            &self.hallway[hall_idx + 1..room_idx]
+        } else {
+            &self.hallway[room_idx..hall_idx]
+        };
+
+        range.iter().all(Option::is_none)
+    }
+
+    fn room_input_idx(&self, amph: Amphipod) -> usize {
+        // Assumes this room is ready! Do your due diligence.
+        let mut next_available = None;
+        for (i, a) in self.rooms[amph.room_idx()].iter().enumerate() {
+            if a.is_none() == true {
+                next_available = Some(i);
+            }
+        }
+        next_available.expect("No space in the room!")
+    }
+
+    fn room_output_idx(&self, amph: Amphipod) -> Option<usize> {
+        for (i, a) in self.rooms[amph.room_idx()].iter().enumerate() {
+            if a.is_none() == false {
+                return Some(i);
+            }
+        }
+        None
     }
 
     fn organize(&self) -> u32 {
-        let mut end_state: Vec<Amphipod> = self
-            .map
-            .iter()
-            .filter_map(|(p, space)| match space {
-                Space::Room(r) => Some(Amphipod { pos: *p, kind: *r }),
-                Space::Hallway => None,
-                Space::HallwayCantStop => None,
-            })
-            .collect();
-        end_state.sort_unstable_by_key(|a| a.pos);
+        let mut best_states: HashMap<Burrow<N>, u32> = HashMap::new();
+        best_states.insert(*self, 0);
 
-        let mut best_states: HashMap<Vec<Amphipod>, u32> = HashMap::new();
-        best_states.insert(self.start.clone(), 0);
-
-        let mut states: BinaryHeap<Reverse<Node>> = BinaryHeap::new();
-        states.push(Reverse(Node(0, self.start.clone())));
-        while let Some(Reverse(Node(curr_cost, curr_state))) = states.pop() {
-            //println!("States: {}", states.len());
-            //println!("Try cost {}:", curr_cost);
-            //println!("{}", BurrowDisplay(self, &curr_state));
-            if curr_state == end_state {
-                continue;
+        let mut state_queue: BinaryHeap<Reverse<State<N>>> = BinaryHeap::new();
+        state_queue.push(Reverse(State(0, *self)));
+        while let Some(Reverse(State(curr_cost, curr_state))) = state_queue.pop() {
+            //println!("{}", curr_state);
+            if curr_state == Burrow::END_STATE {
+                continue; // This is the end state, no need to search further
             }
-            if let Some(best_cost) = best_states.get(&end_state) {
+            if let Some(best_cost) = best_states.get(&Burrow::END_STATE) {
                 if curr_cost >= *best_cost {
-                    continue;
+                    continue; // This is already worse than another result we've already found so skip it
                 }
             }
 
-            // Get all possible moves for all amphipods
-            let mut all_moves: Vec<(usize, Point2, u32)> = Vec::new();
-            for (i, amphipod) in curr_state.iter().enumerate() {
-                //println!("    Moves for [{}] @ {:?}:", i, amphipod);
-                for (p, cost) in self.moves(&curr_state, amphipod) {
-                    all_moves.push((i, p, cost));
-                }
+            /*
+                If there are moves that go to rooms, only consider those options. This improves the efficiency of the
+                search by discarding many intermediate states, since every amphipod in the hallway needs to move to its
+                room eventually and the order in which they move to the room is not important. If there aren't any moves
+                that go to rooms, consider moves to the hallway.
+            */
+            let mut moves = curr_state.hallway_to_rooms_moves();
+            if moves.is_empty() == true {
+                let hallway_moves = curr_state.rooms_to_hallway_moves();
+                moves.extend(hallway_moves);
             }
 
-            // Find the subset of moves which lead to a room
-            let mut room_moves: Vec<(usize, Point2, u32)> = Vec::new();
-            for (i, p, cost) in all_moves.iter().copied() {
-                if matches!(self.map.get(&p).unwrap(), Space::Room(_)) {
-                    room_moves.push((i, p, cost));
-                }
-            }
-
-            // If there are moves that go to rooms, only consider those options. This improves the efficiency of the search
-            // by discarding many intermediate states. If there aren't any moves that go to rooms, consider all options.
-            let moves_iter = if room_moves.is_empty() == false {
-                room_moves.into_iter()
-            } else {
-                all_moves.into_iter()
-            };
-
-            for (i, p, cost) in moves_iter {
-                //println!("        {} cost {}", m.0, m.1);
-                let mut next_state = curr_state.clone();
-                next_state[i].pos = p;
-                next_state.sort_unstable_by_key(|a| a.pos);
+            for State(cost, next_burrow) in moves {
                 let next_cost = curr_cost + cost;
-                if let Some(best_cost) = best_states.get(&next_state) {
+                if let Some(best_cost) = best_states.get(&next_burrow) {
                     if next_cost >= *best_cost {
-                        // Next isn't better so don't bother with it
-                    } else {
-                        //println!("        Push next cost {}: {:?}", next_cost, next_state);
-                        states.push(Reverse(Node(next_cost, next_state.clone())));
-                        best_states.insert(next_state, next_cost);
+                        continue; // Next isn't better so don't bother with it
                     }
-                } else {
-                    //println!("        Push next cost {}: {:?}", next_cost, next_state);
-                    states.push(Reverse(Node(next_cost, next_state.clone())));
-                    best_states.insert(next_state, next_cost);
                 }
+                state_queue.push(Reverse(State(next_cost, next_burrow)));
+                best_states.insert(next_burrow, next_cost);
             }
         }
 
-        best_states[&end_state]
-    }
-
-    fn is_room_ready(&self, curr_state: &[Amphipod], kind: AmphiKind) -> Option<Point2> {
-        let mut first_free = None;
-
-        let room = &self.rooms[&kind];
-        for p in room.iter().rev() {
-            let mut any = false;
-            for a in curr_state {
-                if a.pos == *p {
-                    if a.kind != kind {
-                        return None;
-                    } else {
-                        any = true;
-                        break;
-                    }
-                }
-            }
-            if any == false && first_free.is_none() {
-                first_free = Some(*p);
-            }
-        }
-
-        first_free
-    }
-
-    fn moves(&self, curr_state: &[Amphipod], amphipod: &Amphipod) -> Vec<(Point2, u32)> {
-        /*
-            Find all valid moves for a given amphipod.
-            Return a list of the points along with their energy costs.
-
-            Valid moves are:
-            1. Go from a room that isn't ready to the hallway or to a ready room
-            2. Go from the hallway to a ready room
-        */
-        let mut moves = Vec::new();
-
-        let reachable = self.find_reachable(curr_state, &amphipod.pos);
-        //println!("        Reachable: {:?}", reachable);
-        for (p, steps) in reachable {
-            // They never move from hallway to hallway due to the 3rd rule. Check (from, to) pairs.
-            match (
-                self.map.get(&amphipod.pos).unwrap(),
-                self.map.get(&p).unwrap(),
-            ) {
-                (Space::Room(from), Space::Room(to)) => {
-                    // TODO: try removing this as a possibility. Things should still work as Room -> Hallway -> Room
-                    // but this lets us calculate cost directly as the manhattan distance, which should also make
-                    // find_reachable() simpler. Not clear if this is a timesaver as it does increase the search space.
-                    /*
-                        This is a valid move if ALL of these are true:
-                        1. The 'from' room is not a matching room
-                        2. The 'to' room is matching
-                        3. The 'to' room is ready
-                        4. The 'to' point is the next ready space
-                    */
-                    if from != &amphipod.kind && to == &amphipod.kind {
-                        if let Some(next_ready) = self.is_room_ready(curr_state, amphipod.kind) {
-                            if next_ready == p {
-                                let cost = steps * amphipod.kind.cost();
-                                moves.push((p, cost));
-                            }
-                        }
-                    }
-                }
-                (Space::Hallway, Space::Room(to)) => {
-                    /*
-                        This is a valid move if ALL of these are true:
-                        1. The 'to' room is matching and ready
-                        2. The 'to' point is the next ready space
-                    */
-                    if to == &amphipod.kind {
-                        if let Some(next_ready) = self.is_room_ready(curr_state, amphipod.kind) {
-                            if next_ready == p {
-                                let cost = steps * amphipod.kind.cost();
-                                moves.push((p, cost));
-                            }
-                        }
-                    }
-                }
-                (Space::Room(from), Space::Hallway) => {
-                    /*
-                        This is a valid move if ANY of these are true:
-                        1. The 'from' room is not matching
-                        2. The 'from' room is matching but not ready
-                    */
-                    #[allow(clippy::if_same_then_else)] // False positive
-                    if from != &amphipod.kind {
-                        let cost = steps * amphipod.kind.cost();
-                        moves.push((p, cost));
-                    } else if self.is_room_ready(curr_state, amphipod.kind).is_none() == true {
-                        let cost = steps * amphipod.kind.cost();
-                        moves.push((p, cost));
-                    } else {
-                        // Do nothing
-                    }
-                }
-                _ => (), // No other options are valid
-            }
-        }
-
-        moves
-    }
-
-    fn find_reachable(&self, curr_state: &[Amphipod], from: &Point2) -> Vec<(Point2, u32)> {
-        // Find all reachable positions.
-        // A space is reachable if it is not blocked by an amphipod.
-        // Do not consider whether the space is valid (i.e. if it's a room of the right type).
-        let mut reachable = Vec::new();
-
-        let mut paths: Vec<(Point2, u32)> = vec![(*from, 0)];
-        let mut visited = vec![*from];
-        while paths.is_empty() == false {
-            let (curr_p, curr_step) = paths.pop().unwrap();
-            for next_p in curr_p.orthogonals() {
-                if visited.contains(&next_p) == false && self.map.get(&next_p).is_some() == true {
-                    let any_blocker = curr_state.iter().any(|a| a.pos == next_p);
-                    if any_blocker == false {
-                        paths.push((next_p, curr_step + 1));
-                        reachable.push((next_p, curr_step + 1));
-                        visited.push(next_p);
-                    }
-                }
-            }
-            paths.sort_unstable_by_key(|x| Reverse(x.1));
-            paths.dedup();
-        }
-
-        reachable
+        best_states[&Burrow::END_STATE]
     }
 }
 
-struct BurrowDisplay<'a, 'b>(&'a Burrow, &'b Vec<Amphipod>);
-
-impl<'a, 'b> std::fmt::Display for BurrowDisplay<'a, 'b> {
+impl<const N: usize> std::fmt::Display for Burrow<N> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let range = Point2::get_range(self.0.map.keys()).unwrap();
-        for y in range.y.0..=range.y.1 {
-            for x in range.x.0..=range.x.1 {
-                let p = Point2 { x, y };
-                if let Some(a) = self.1.iter().find(|a| a.pos == p) {
-                    write!(f, "{}", a.kind.to_char())?;
-                } else if self.0.map.get(&p).is_some() == true {
-                    write!(f, ".")?;
+        writeln!(f)?;
+        writeln!(f, "#############")?;
+
+        write!(f, "#")?;
+        for hall_x in 0..11 {
+            if [3, 5, 7, 9].contains(&hall_x) == true {
+                write!(f, ".")?;
+            } else {
+                let hall_idx = Self::x_to_hall_idx(hall_x);
+                if let Some(amph) = self.hallway[hall_idx] {
+                    write!(f, "{}", amph.to_char())?;
                 } else {
-                    write!(f, " ")?;
+                    write!(f, ".")?;
                 }
             }
-            writeln!(f)?;
         }
+        writeln!(f, "#")?;
+
+        for row in 0..N {
+            if row == 0 {
+                write!(f, "##")?;
+            } else {
+                write!(f, "  ")?;
+            }
+            write!(f, "#")?;
+
+            for room in 0..self.rooms.len() {
+                if let Some(amph) = self.rooms[room][row] {
+                    write!(f, "{}", amph.to_char())?;
+                } else {
+                    write!(f, ".")?;
+                }
+                write!(f, "#")?;
+            }
+
+            if row == 0 {
+                write!(f, "#")?;
+            }
+            writeln!(f, "#")?;
+        }
+
+        write!(f, "  #########")?;
+        Ok(())
+    }
+}
+
+impl<const N: usize> std::fmt::Display for State<N> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Cost: {}", self.0)?;
+        writeln!(f, "State:{}", self.1)?;
         Ok(())
     }
 }
 
 #[aoc(day23, part1)]
 pub fn part1(input: &str) -> u32 {
-    let burrow = Burrow::from_string(input, Mode::M1);
+    let burrow = Burrow::<2>::from_string(input);
     let cost = burrow.organize();
     assert_eq!(cost, 12240);
     cost
@@ -682,7 +692,7 @@ pub fn part1(input: &str) -> u32 {
 
 #[aoc(day23, part2)]
 pub fn part2(input: &str) -> u32 {
-    let burrow = Burrow::from_string(input, Mode::M2);
+    let burrow = Burrow::<4>::from_string(input);
     let cost = burrow.organize();
     assert_eq!(cost, 44618);
     cost
@@ -701,96 +711,150 @@ mod test {
 
     #[test]
     fn test_organize1() {
-        let burrow = Burrow::from_string(EXAMPLE_INPUT, Mode::M1);
+        let burrow = Burrow::<2>::from_string(EXAMPLE_INPUT);
         let cost = burrow.organize();
         assert_eq!(cost, 12521);
     }
 
     #[test]
     fn test_organize2() {
-        let burrow = Burrow::from_string(EXAMPLE_INPUT, Mode::M2);
+        let burrow = Burrow::<4>::from_string(EXAMPLE_INPUT);
         let cost = burrow.organize();
         assert_eq!(cost, 44169);
     }
 
     #[test]
     fn test_is_room_ready() {
-        let burrow = Burrow::from_string(EXAMPLE_INPUT, Mode::M1);
-        assert_eq!(burrow.is_room_ready(&burrow.start, AmphiKind::A), None);
-        assert_eq!(burrow.is_room_ready(&burrow.start, AmphiKind::B), None);
-        assert_eq!(burrow.is_room_ready(&burrow.start, AmphiKind::C), None);
-        assert_eq!(burrow.is_room_ready(&burrow.start, AmphiKind::D), None);
+        let burrow = Burrow::<2>::from_string(EXAMPLE_INPUT);
+        assert_eq!(burrow.is_room_ready(Amphipod::A), false);
+        assert_eq!(burrow.is_room_ready(Amphipod::B), false);
+        assert_eq!(burrow.is_room_ready(Amphipod::C), false);
+        assert_eq!(burrow.is_room_ready(Amphipod::D), false);
 
-        #[rustfmt::skip]
-        let curr_state = vec![
-            Amphipod { pos: Point2 { x: 3, y: 2 }, kind: AmphiKind::A },
-            Amphipod { pos: Point2 { x: 3, y: 3 },  kind: AmphiKind::A },
-            Amphipod { pos: Point2 { x: 5, y: 2 }, kind: AmphiKind::B },
-            Amphipod { pos: Point2 { x: 5, y: 3 }, kind: AmphiKind::B },
-            Amphipod { pos: Point2 { x: 7, y: 2 }, kind: AmphiKind::C },
-            Amphipod { pos: Point2 { x: 7, y: 3 }, kind: AmphiKind::C },
-            Amphipod { pos: Point2 { x: 9, y: 2 }, kind: AmphiKind::D },
-            Amphipod { pos: Point2 { x: 9, y: 3 }, kind: AmphiKind::D },
-        ];
-        assert_eq!(burrow.is_room_ready(&curr_state, AmphiKind::A), None);
-        assert_eq!(burrow.is_room_ready(&curr_state, AmphiKind::B), None);
-        assert_eq!(burrow.is_room_ready(&curr_state, AmphiKind::C), None);
-        assert_eq!(burrow.is_room_ready(&curr_state, AmphiKind::D), None);
+        let input = "\
+#############
+#...........#
+###.#.#.#.###
+  #.#.#.#.#
+  #########";
+        let burrow = Burrow::<2>::from_string(input);
+        assert_eq!(burrow.is_room_ready(Amphipod::A), true);
+        assert_eq!(burrow.is_room_ready(Amphipod::B), true);
+        assert_eq!(burrow.is_room_ready(Amphipod::C), true);
+        assert_eq!(burrow.is_room_ready(Amphipod::D), true);
 
-        #[rustfmt::skip]
-        let curr_state = vec![
-            Amphipod { pos: Point2 { x: 0, y: 0 }, kind: AmphiKind::A },
-            Amphipod { pos: Point2 { x: 0, y: 0 }, kind: AmphiKind::A },
-            Amphipod { pos: Point2 { x: 0, y: 0 }, kind: AmphiKind::B },
-            Amphipod { pos: Point2 { x: 0, y: 0 }, kind: AmphiKind::B },
-            Amphipod { pos: Point2 { x: 0, y: 0 }, kind: AmphiKind::C },
-            Amphipod { pos: Point2 { x: 0, y: 0 }, kind: AmphiKind::C },
-            Amphipod { pos: Point2 { x: 0, y: 0 }, kind: AmphiKind::D },
-            Amphipod { pos: Point2 { x: 0, y: 0 }, kind: AmphiKind::D },
-        ];
-        assert_eq!(
-            burrow.is_room_ready(&curr_state, AmphiKind::A),
-            Some(Point2 { x: 3, y: 3 })
-        );
-        assert_eq!(
-            burrow.is_room_ready(&curr_state, AmphiKind::B),
-            Some(Point2 { x: 5, y: 3 })
-        );
-        assert_eq!(
-            burrow.is_room_ready(&curr_state, AmphiKind::C),
-            Some(Point2 { x: 7, y: 3 })
-        );
-        assert_eq!(
-            burrow.is_room_ready(&curr_state, AmphiKind::D),
-            Some(Point2 { x: 9, y: 3 })
-        );
+        let input = "\
+#############
+#...........#
+###.#.#.#.###
+  #A#B#C#D#
+  #########";
+        let burrow = Burrow::<2>::from_string(input);
+        assert_eq!(burrow.is_room_ready(Amphipod::A), true);
+        assert_eq!(burrow.is_room_ready(Amphipod::B), true);
+        assert_eq!(burrow.is_room_ready(Amphipod::C), true);
+        assert_eq!(burrow.is_room_ready(Amphipod::D), true);
 
-        #[rustfmt::skip]
-        let curr_state = vec![
-            Amphipod { pos: Point2 { x: 0, y: 0 }, kind: AmphiKind::A },
-            Amphipod { pos: Point2 { x: 3, y: 3 }, kind: AmphiKind::A },
-            Amphipod { pos: Point2 { x: 0, y: 0 }, kind: AmphiKind::B },
-            Amphipod { pos: Point2 { x: 5, y: 3 }, kind: AmphiKind::B },
-            Amphipod { pos: Point2 { x: 0, y: 0 }, kind: AmphiKind::C },
-            Amphipod { pos: Point2 { x: 7, y: 3 }, kind: AmphiKind::C },
-            Amphipod { pos: Point2 { x: 0, y: 0 }, kind: AmphiKind::D },
-            Amphipod { pos: Point2 { x: 9, y: 3 }, kind: AmphiKind::D },
-        ];
-        assert_eq!(
-            burrow.is_room_ready(&curr_state, AmphiKind::A),
-            Some(Point2 { x: 3, y: 2 })
-        );
-        assert_eq!(
-            burrow.is_room_ready(&curr_state, AmphiKind::B),
-            Some(Point2 { x: 5, y: 2 })
-        );
-        assert_eq!(
-            burrow.is_room_ready(&curr_state, AmphiKind::C),
-            Some(Point2 { x: 7, y: 2 })
-        );
-        assert_eq!(
-            burrow.is_room_ready(&curr_state, AmphiKind::D),
-            Some(Point2 { x: 9, y: 2 })
-        );
+        let input = "\
+#############
+#...........#
+###A#B#C#D###
+  #A#B#C#D#
+  #########";
+        let burrow = Burrow::<2>::from_string(input);
+        assert_eq!(burrow.is_room_ready(Amphipod::A), true);
+        assert_eq!(burrow.is_room_ready(Amphipod::B), true);
+        assert_eq!(burrow.is_room_ready(Amphipod::C), true);
+        assert_eq!(burrow.is_room_ready(Amphipod::D), true);
+
+        let input = "\
+#############
+#...........#
+###.#.#.#.###
+  #B#A#D#C#
+  #########";
+        let burrow = Burrow::<2>::from_string(input);
+        assert_eq!(burrow.is_room_ready(Amphipod::A), false);
+        assert_eq!(burrow.is_room_ready(Amphipod::B), false);
+        assert_eq!(burrow.is_room_ready(Amphipod::C), false);
+        assert_eq!(burrow.is_room_ready(Amphipod::D), false);
+
+        let input = "\
+#############
+#...........#
+###A#B#C#D###
+  #B#A#D#C#
+  #########";
+        let burrow = Burrow::<2>::from_string(input);
+        assert_eq!(burrow.is_room_ready(Amphipod::A), false);
+        assert_eq!(burrow.is_room_ready(Amphipod::B), false);
+        assert_eq!(burrow.is_room_ready(Amphipod::C), false);
+        assert_eq!(burrow.is_room_ready(Amphipod::D), false);
+    }
+
+    #[test]
+    fn test_room_input_idx() {
+        let input = "\
+#############
+#...........#
+###.#.#.#.###
+  #.#.#.#.#
+  #########";
+        let burrow = Burrow::<2>::from_string(input);
+        assert_eq!(burrow.room_input_idx(Amphipod::A), 1);
+        assert_eq!(burrow.room_input_idx(Amphipod::B), 1);
+        assert_eq!(burrow.room_input_idx(Amphipod::C), 1);
+        assert_eq!(burrow.room_input_idx(Amphipod::D), 1);
+
+        let input = "\
+#############
+#...........#
+###.#.#.#.###
+  #A#B#C#D#
+  #########";
+        let burrow = Burrow::<2>::from_string(input);
+        assert_eq!(burrow.room_input_idx(Amphipod::A), 0);
+        assert_eq!(burrow.room_input_idx(Amphipod::B), 0);
+        assert_eq!(burrow.room_input_idx(Amphipod::C), 0);
+        assert_eq!(burrow.room_input_idx(Amphipod::D), 0);
+    }
+
+    #[test]
+    fn test_room_output_idx() {
+        let input = "\
+#############
+#...........#
+###.#.#.#.###
+  #.#.#.#.#
+  #########";
+        let burrow = Burrow::<2>::from_string(input);
+        assert_eq!(burrow.room_output_idx(Amphipod::A), None);
+        assert_eq!(burrow.room_output_idx(Amphipod::B), None);
+        assert_eq!(burrow.room_output_idx(Amphipod::C), None);
+        assert_eq!(burrow.room_output_idx(Amphipod::D), None);
+
+        let input = "\
+#############
+#...........#
+###.#.#.#.###
+  #A#B#C#D#
+  #########";
+        let burrow = Burrow::<2>::from_string(input);
+        assert_eq!(burrow.room_output_idx(Amphipod::A), Some(1));
+        assert_eq!(burrow.room_output_idx(Amphipod::B), Some(1));
+        assert_eq!(burrow.room_output_idx(Amphipod::C), Some(1));
+        assert_eq!(burrow.room_output_idx(Amphipod::D), Some(1));
+
+        let input = "\
+#############
+#...........#
+###A#B#C#D###
+  #A#B#C#D#
+  #########";
+        let burrow = Burrow::<2>::from_string(input);
+        assert_eq!(burrow.room_output_idx(Amphipod::A), Some(0));
+        assert_eq!(burrow.room_output_idx(Amphipod::B), Some(0));
+        assert_eq!(burrow.room_output_idx(Amphipod::C), Some(0));
+        assert_eq!(burrow.room_output_idx(Amphipod::D), Some(0));
     }
 }
