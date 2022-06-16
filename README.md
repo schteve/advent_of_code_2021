@@ -41,7 +41,7 @@ Each commit is checked with the following commands:
 # Execution times
 Time measurements were made using the command: `cargo aoc bench -d D`, where D is replaced with the relevant day number (1-25). The average measurement was used; in some cases it would be more accurate to use the fastest measurement as this best represents how the program is capable of performing, however in other cases there is significant variability in the run time due to the program itself (such as when using hashes, which internally have random seeds).
 
-Total: TBD
+Total: 3.0682 s
 
 Day | Part | Time
 :--:| :--: | :-------:
