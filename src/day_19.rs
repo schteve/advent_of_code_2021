@@ -370,7 +370,11 @@ use nom::{
     sequence::{preceded, tuple},
     IResult,
 };
-use std::{cmp::Ordering, collections::HashSet};
+use std::{
+    cmp::Ordering,
+    collections::HashSet,
+    ops::{Index, IndexMut},
+};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum XYZ {
@@ -395,12 +399,43 @@ impl Orientation {
             n: 0,
         }
     }
+
+    fn idx(&self) -> usize {
+        self.facing as usize * 4 + self.n as usize
+    }
+
+    const fn total() -> usize {
+        24 // 6 faces, 4 rotations
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct BeaconsList([Vec<Point3>; Orientation::total()]);
+
+impl BeaconsList {
+    fn new() -> Self {
+        Self(Default::default())
+    }
+}
+
+impl Index<Orientation> for BeaconsList {
+    type Output = Vec<Point3>;
+    fn index(&self, orientation: Orientation) -> &Self::Output {
+        let idx = orientation.idx();
+        &self.0[idx]
+    }
+}
+
+impl IndexMut<Orientation> for BeaconsList {
+    fn index_mut(&mut self, orientation: Orientation) -> &mut Self::Output {
+        &mut self.0[orientation.idx()]
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Scanner {
     id: u32,
-    beacons: Vec<Point3>,
+    beacons_list: BeaconsList,
     position: Option<Point3>,
     orientation: Option<Orientation>,
 }
@@ -417,10 +452,13 @@ impl Scanner {
 
         beacons.sort_unstable();
 
+        let mut beacons_list = BeaconsList::new();
+        beacons_list[Orientation::new()] = beacons;
+
         Ok((
             input,
             Self {
-                beacons,
+                beacons_list,
                 id,
                 position: None,
                 orientation: None,
@@ -428,44 +466,49 @@ impl Scanner {
         ))
     }
 
-    fn orient(&self, orientation: Orientation) -> Self {
-        let mut beacons = Vec::new();
-        for p in &self.beacons {
-            let new_p = match orientation.facing {
-                XYZ::X => rotate_point_around_axis(p, XYZ::Y, 3),
-                XYZ::Y => rotate_point_around_axis(p, XYZ::X, 1),
-                XYZ::Z => rotate_point_around_axis(p, XYZ::Y, 2),
-                XYZ::NX => rotate_point_around_axis(p, XYZ::Y, 1),
-                XYZ::NY => rotate_point_around_axis(p, XYZ::X, 3),
-                XYZ::NZ => *p,
-            };
-            let new_p = rotate_point_around_axis(&new_p, orientation.facing, orientation.n);
-            beacons.push(new_p);
-        }
-
-        beacons.sort_unstable();
-
-        Self {
-            id: self.id,
-            beacons,
-            position: self.position,
-            orientation: Some(orientation),
+    fn beacons(&self) -> &Vec<Point3> {
+        if let Some(o) = self.orientation {
+            &self.beacons_list[o]
+        } else {
+            &self.beacons_list[Orientation::new()]
         }
     }
 
-    fn check_overlap(&self, other: &Self, overlap_criteria: u32) -> Option<Point3> {
-        for self_p in &self.beacons {
-            for other_p in &other.beacons {
-                // Use self - other here because it makes the final answer more intuitive e.g. the answer has positive x if other is to the right of self.
-                let offset = self_p - other_p;
+    fn orient(&mut self, orientation: Orientation) -> &Vec<Point3> {
+        if self.beacons_list[orientation].is_empty() == true {
+            let mut beacons = Vec::new();
+            for p in &self.beacons_list[Orientation::new()] {
+                let new_p = match orientation.facing {
+                    XYZ::X => rotate_point_around_axis(p, XYZ::Y, 3),
+                    XYZ::Y => rotate_point_around_axis(p, XYZ::X, 1),
+                    XYZ::Z => rotate_point_around_axis(p, XYZ::Y, 2),
+                    XYZ::NX => rotate_point_around_axis(p, XYZ::Y, 1),
+                    XYZ::NY => rotate_point_around_axis(p, XYZ::X, 3),
+                    XYZ::NZ => *p,
+                };
+                let new_p = rotate_point_around_axis(&new_p, orientation.facing, orientation.n);
+                beacons.push(new_p);
+            }
+
+            beacons.sort_unstable();
+            self.beacons_list[orientation] = beacons;
+        }
+        &self.beacons_list[orientation]
+    }
+
+    fn check_overlap(b1: &[Point3], b2: &[Point3], overlap_criteria: u32) -> Option<Point3> {
+        for p1 in b1 {
+            for p2 in b2 {
+                // Use p1 - p2 here because it makes the final answer more intuitive e.g. the answer has positive x if other is to the right of self.
+                let offset = p1 - p2;
                 let mut count = 0;
-                for (i, check_p) in other.beacons.iter().enumerate() {
-                    if (other.beacons.len() - i) < (overlap_criteria - count) as usize {
+                for (i, check_p) in b2.iter().enumerate() {
+                    if (b2.len() - i) < (overlap_criteria - count) as usize {
                         // Not enough beacons left to possibly reach the criteria count
                         break;
                     } else {
                         let offset_check = check_p + offset;
-                        if self.beacons.contains(&offset_check) {
+                        if b1.contains(&offset_check) {
                             count += 1;
                         }
                     }
@@ -482,19 +525,22 @@ impl Scanner {
         None
     }
 
-    fn check_overlap_oriented(&self, other: &Self, overlap_criteria: u32) -> Option<Self> {
+    fn check_overlap_oriented(&self, other: &mut Self, overlap_criteria: u32) -> bool {
+        let self_beacons = self.beacons();
         for facing in [XYZ::X, XYZ::Y, XYZ::Z, XYZ::NX, XYZ::NY, XYZ::NZ] {
             for n in 0..4 {
-                let oriented = other.orient(Orientation { facing, n });
-                if let Some(s) = self.check_overlap(&oriented, overlap_criteria) {
-                    return Some(Self {
-                        position: self.position.map(|x| x + s),
-                        ..oriented
-                    });
+                let orientation = Orientation { facing, n };
+                let other_beacons_oriented = other.orient(orientation);
+                if let Some(offset) =
+                    Scanner::check_overlap(self_beacons, other_beacons_oriented, overlap_criteria)
+                {
+                    other.position = self.position.map(|x| x + offset);
+                    other.orientation = Some(orientation);
+                    return true;
                 }
             }
         }
-        None
+        false
     }
 }
 
@@ -547,30 +593,27 @@ fn find_all_positions(scanners: &[Scanner]) -> Vec<Scanner> {
 
     let mut tried: HashSet<(u32, u32)> = HashSet::new();
 
-    let mut keep: Vec<bool> = Vec::new();
     loop {
-        keep.clear();
-        'undet: for undet in &undetermined {
+        let mut next = Vec::new();
+        'undet: for mut undet in undetermined {
             for i in 0..oriented.len() {
                 if tried.contains(&(oriented[i].id, undet.id)) == true {
                     // We already tried it, skip it
-                } else if let Some(s) = oriented[i].check_overlap_oriented(undet, 12) {
-                    oriented.push(s);
-                    keep.push(false);
+                } else if oriented[i].check_overlap_oriented(&mut undet, 12) == true {
+                    oriented.push(undet);
                     continue 'undet;
                 } else {
                     // Mark that we tried this combination so we don't do it again
                     tried.insert((oriented[i].id, undet.id));
                 }
             }
-            keep.push(true);
+            next.push(undet);
         }
 
-        let mut keep_iter = keep.iter();
-        undetermined.retain(|_| *keep_iter.next().unwrap());
-
-        if undetermined.is_empty() == true {
+        if next.is_empty() == true {
             break;
+        } else {
+            undetermined = next;
         }
     }
 
@@ -581,7 +624,7 @@ fn unique_beacons(scanners: &[Scanner]) -> Vec<Point3> {
     let oriented = find_all_positions(scanners);
     let mut total_beacons: Vec<Point3> = Vec::new();
     for s in &oriented {
-        total_beacons.extend(s.beacons.iter().map(|p| p + s.position.unwrap()));
+        total_beacons.extend(s.beacons().iter().map(|p| p + s.position.unwrap()));
     }
     total_beacons.sort_unstable_by(Point3::cmp_xyz);
     total_beacons.dedup();
@@ -824,41 +867,26 @@ mod test {
     fn test_orient() {
         let scanners = input_generator(EXAMPLE_INPUT2);
 
-        let orientation = Orientation {
-            facing: XYZ::NZ,
-            n: 0,
-        };
-        assert_eq!(scanners[0].orient(orientation).beacons, scanners[0].beacons);
+        let mut orig_scanner = scanners[0].clone();
 
-        let orientation = Orientation {
-            facing: XYZ::Y,
-            n: 2,
-        };
-        assert_eq!(scanners[0].orient(orientation).beacons, scanners[1].beacons);
+        #[rustfmt::skip]
+        let orientations = [
+            Orientation { facing: XYZ::NZ, n: 0 },
+            Orientation { facing: XYZ::Y, n: 2 },
+            Orientation { facing: XYZ::X, n: 0 },
+            Orientation { facing: XYZ::NX, n: 2 },
+            Orientation { facing: XYZ::NY, n: 3 },
+        ];
 
-        let orientation = Orientation {
-            facing: XYZ::X,
-            n: 0,
-        };
-        assert_eq!(scanners[0].orient(orientation).beacons, scanners[2].beacons);
-
-        let orientation = Orientation {
-            facing: XYZ::NX,
-            n: 2,
-        };
-        assert_eq!(scanners[0].orient(orientation).beacons, scanners[3].beacons);
-
-        let orientation = Orientation {
-            facing: XYZ::NY,
-            n: 3,
-        };
-        assert_eq!(scanners[0].orient(orientation).beacons, scanners[4].beacons);
+        for (scanner, orientation) in scanners.iter().zip(orientations.into_iter()) {
+            assert_eq!(orig_scanner.orient(orientation), scanner.beacons());
+        }
     }
 
     #[test]
     fn test_check_overlap() {
         let scanners = input_generator(EXAMPLE_INPUT1);
-        let res = scanners[0].check_overlap(&scanners[1], 3);
+        let res = Scanner::check_overlap(&scanners[0].beacons(), &scanners[1].beacons(), 3);
         assert_eq!(res, Some((5, 2, 0).into()));
     }
 
@@ -870,24 +898,28 @@ mod test {
         oriented[0].position = Some(Point3::origin());
         oriented[0].orientation = Some(Orientation::new());
 
-        oriented[1] = oriented[0]
-            .check_overlap_oriented(&scanners[1], 12)
-            .unwrap();
+        let mut tmp = scanners[1].clone();
+        let overlapped = oriented[0].check_overlap_oriented(&mut tmp, 12);
+        assert!(overlapped);
+        oriented[1] = tmp;
         assert_eq!(oriented[1].position, Some((68, -1246, -43).into()));
 
-        oriented[4] = oriented[1]
-            .check_overlap_oriented(&scanners[4], 12)
-            .unwrap();
+        let mut tmp = scanners[4].clone();
+        let overlapped = oriented[1].check_overlap_oriented(&mut tmp, 12);
+        oriented[4] = tmp;
+        assert!(overlapped);
         assert_eq!(oriented[4].position, Some((-20, -1133, 1061).into()));
 
-        oriented[2] = oriented[4]
-            .check_overlap_oriented(&scanners[2], 12)
-            .unwrap();
+        let mut tmp = scanners[2].clone();
+        let overlapped = oriented[4].check_overlap_oriented(&mut tmp, 12);
+        oriented[2] = tmp;
+        assert!(overlapped);
         assert_eq!(oriented[2].position, Some((1105, -1205, 1229).into()));
 
-        oriented[3] = oriented[1]
-            .check_overlap_oriented(&scanners[3], 12)
-            .unwrap();
+        let mut tmp = scanners[3].clone();
+        let overlapped = oriented[1].check_overlap_oriented(&mut tmp, 12);
+        oriented[3] = tmp;
+        assert!(overlapped);
         assert_eq!(oriented[3].position, Some((-92, -2380, -20).into()));
     }
 
