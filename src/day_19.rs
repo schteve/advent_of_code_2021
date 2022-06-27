@@ -403,6 +403,7 @@ pub struct Scanner {
     beacons: Vec<Point3>,
     position: Option<Point3>,
     orientation: Option<Orientation>,
+    distances: HashSet<u32>,
 }
 
 impl Scanner {
@@ -424,8 +425,20 @@ impl Scanner {
                 id,
                 position: None,
                 orientation: None,
+                distances: HashSet::new(),
             },
         ))
+    }
+
+    fn gen_distances(&mut self) {
+        let mut distances = HashSet::new();
+        for a in &self.beacons {
+            for b in &self.beacons {
+                let dist = Point3::manhattan(*a, *b);
+                distances.insert(dist);
+            }
+        }
+        self.distances = distances;
     }
 
     fn orient(&self, orientation: Orientation) -> Self {
@@ -450,6 +463,7 @@ impl Scanner {
             beacons,
             position: self.position,
             orientation: Some(orientation),
+            distances: self.distances.clone(),
         }
     }
 
@@ -496,6 +510,10 @@ impl Scanner {
         }
         None
     }
+
+    fn check_overlap_by_distance(&self, other: &Self, overlap_criteria: u32) -> bool {
+        self.distances.intersection(&other.distances).count() >= overlap_criteria as usize
+    }
 }
 
 fn rotate_point_around_axis(p: &Point3, axis: XYZ, n: u32) -> Point3 {
@@ -540,6 +558,10 @@ fn rotate_point_around_axis(p: &Point3, axis: XYZ, n: u32) -> Point3 {
 
 fn find_all_positions(scanners: &[Scanner]) -> Vec<Scanner> {
     let mut undetermined = scanners.to_vec();
+    for scanner in &mut undetermined {
+        scanner.gen_distances();
+    }
+
     let mut origin = undetermined.remove(0);
     origin.position = Some(Point3::origin());
     origin.orientation = Some(Orientation::new());
@@ -554,14 +576,20 @@ fn find_all_positions(scanners: &[Scanner]) -> Vec<Scanner> {
             for i in 0..oriented.len() {
                 if tried.contains(&(oriented[i].id, undet.id)) == true {
                     // We already tried it, skip it
-                } else if let Some(s) = oriented[i].check_overlap_oriented(undet, 12) {
-                    oriented.push(s);
-                    keep.push(false);
-                    continue 'undet;
-                } else {
-                    // Mark that we tried this combination so we don't do it again
-                    tried.insert((oriented[i].id, undet.id));
+                    continue;
                 }
+
+                // 67 because if 12 points overlap there are 66 (12 choose 2) distances between them.
+                // Plus one because we didn't remove the identity distance.
+                if oriented[i].check_overlap_by_distance(undet, 67) == true {
+                    if let Some(s) = oriented[i].check_overlap_oriented(undet, 12) {
+                        oriented.push(s);
+                        keep.push(false);
+                        continue 'undet;
+                    }
+                }
+                // Mark that we tried this combination so we don't do it again
+                tried.insert((oriented[i].id, undet.id));
             }
             keep.push(true);
         }

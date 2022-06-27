@@ -41,7 +41,10 @@ Each commit is checked with the following commands:
 # Execution times
 Time measurements were made using the command: `cargo aoc bench -d D`, where D is replaced with the relevant day number (1-25). The average measurement was used; in some cases it would be more accurate to use the fastest measurement as this best represents how the program is capable of performing, however in other cases there is significant variability in the run time due to the program itself (such as when using hashes, which internally have random seeds).
 
-Total: 3.0682 s
+If the individual times are entered in this document, total time can be calculated using `python tools/time.py`
+
+Total: 0.99051 s
+> Success! Under 1 second total.
 
 Day | Part | Time
 :--:| :--: | :-------:
@@ -81,8 +84,8 @@ Day | Part | Time
 17  | 2    | 2.7662 ms
 18  | 1    | 1.2581 ms
 18  | 2    | 23.345 ms
-19  | 1    | 1.1049 s
-19  | 2    | 1.0871 s
+19  | 1    | 57.403 ms
+19  | 2    | 56.873 ms
 20  | 1    | 3.5846 ms
 20  | 2    | 207.77 ms
 21  | 1    | 845.21 ns
