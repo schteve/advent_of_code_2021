@@ -27,9 +27,9 @@ impl Range3 {
     }
 
     pub fn volume_exclusive(&self) -> u64 {
-        let dx = (self.x.1 - self.x.0).abs() as u64;
-        let dy = (self.y.1 - self.y.0).abs() as u64;
-        let dz = (self.z.1 - self.z.0).abs() as u64;
+        let dx = (self.x.1 - self.x.0).unsigned_abs() as u64;
+        let dy = (self.y.1 - self.y.0).unsigned_abs() as u64;
+        let dz = (self.z.1 - self.z.0).unsigned_abs() as u64;
         dx * dy * dz
     }
 }
